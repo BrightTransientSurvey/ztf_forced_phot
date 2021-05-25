@@ -42,7 +42,7 @@ To produce the final calibrated flux measurements, the baseline value `C` is sub
 
 f_nu = 10^(29 - 48.6/2.5 - 0.4 * `zpdiff` * (`forcediffimflux` - `C`))
 
-<img src="https://render.githubusercontent.com/render/math?math=f_\nu = 10^{29 - 48.6/2.5 - 0.4*zpdiff*(forcediffimflux - C)}">
+<img src="https://render.githubusercontent.com/render/math?math=\Large f_\nu = 10^{29 - 48.6/2.5 - 0.4*\mathrm{zpdiff}*(\mathrm{forcediffimflux} - C)}">
 
 ## Final product
 
