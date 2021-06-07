@@ -10,20 +10,6 @@ While the fps provides both a zero-point and flux measurement, potential systema
 
 IPAC fps output requires a "baseline correction" ([see the docs](http://web.ipac.caltech.edu/staff/fmasci/ztf/forcedphot.pdf)). This baseline is best determined using a large (>~ 25) statistical sample of subtraction images that do not include emission from the transient of interest. Most transients have a suitable set of "pre-transient" images, but a significant fraction (e.g., many ZTF discoveries from 2018) require images taken long after the transient has faded. A suitable baseline can be identified visually, though with thousands of BTS transients we automate this procedure.
 
-### Time of maximum
-
-For individual transients we determine the time of maximum by calculating a running median with a 14 day window for every field + filter + chip + quadrant combination (designated `fcqfid` see [Yao et al. (2019)](http://dx.doi.org/10.3847/1538-4357/ab4cf5)) in the fps products. The final time of maximum is determined by taking the mean time of maximum for any g-band or r-band fcqfids taken on the primary ZTF observing grid (see [Bellm et al. (2018)](http://dx.doi.org/10.1088/1538-3873/aaecbe) for more details on the primary and secondary ZTF observing grids).
-
-### Baseline correction
-
-By default, the baseline for each `fcqfid` is determined using observations obtained more than *100 d prior* to the time of maximum light. This threshold is extremely conservative as very few transients have a rise time >100 d. If there are not enough suitable pre-transient observations (i.e., < 25) to measure the baseline correction, the baseline is determined using observations obtained more than *500 d after* the time of maximum light. Again this choice is conservative, though there are transients that have long rise times or that can be detected for years after they are discovered. The baseline correction `C` is calculated via the median `forcediffimflux` value in the baseline region.
-
-We report the total number of observations used to calculate `C` and whether the baseline is measured in observations before or after maximum light. We advise caution when using light curves with few baseline observations (< ~25), and do not provide baseline corrections when there are < 10 observations in the baseline region. If there are > 25 pre-maximum baseline observations or (> 10 pre-maximum AND < 25 post-maximum baseline observations then we use the pre-maximum baseline. Otherwise we use the post-maximum baseline. Pre-maximum baseline measurements are always better than post-maximum measurements because there is always some transient emission present at late times (emission that is statistically insignificant after 500 d, hopefully). 
-
-### Scaling the uncertainties
-
-Following the recommendation in the [fps documentation](http://web.ipac.caltech.edu/staff/fmasci/ztf/forcedphot.pdf), we re-scale the uncertainties of all observations based on the chi-squared distribution of observations in the baseline region. In brief, flux measurements in an "empty" patch of sky should follow a gaussian distribution and "excess" scatter points to some systematic uncertainty that has not been properly quantified (subtractions near galaxy nuclei often exhibit such excess scatter). If the chi-squared distribution is >1, then the uncertainties *of all observations* are multiplied by the square root of the reduced chi squared in the baseline region (see also [Yao et al. (2019)](http://dx.doi.org/10.3847/1538-4357/ab4cf5)).
-
 ### Flagging unreliable observations
 
 We attempt to flag observations that are not reliable, in case users wish to remove these from their analysis. For the most part, such images were taken in extremely poor observing conditions and it was not possible to properly calibrate the PSF model. In particular, we flag images that match the following criteria as `poor_condutions` within the data products: 
@@ -35,6 +21,27 @@ We attempt to flag observations that are not reliable, in case users wish to rem
 (see [Yao et al. (2019)](http://dx.doi.org/10.3847/1538-4357/ab4cf5) for further details). A non-zero value for `infobits` typically indicates a problem with the IPAC data processing pipeline. `infobits` > 33554432 corresponds to "cloudy" data (see Section 2.4 of the [ZTF Science Data System(ZSDS) Advisories & Cautionary Notes](http://web.ipac.caltech.edu/staff/fmasci/ztf/extended_cautionary_notes.pdf)). 
 
 Note that observations that have been flagged as unreliable are excluded from any baseline calculations.
+
+![Alt text](./../images/flagged_obs.jpg?raw=True)
+
+### Time of maximum
+
+For individual transients we determine the time of maximum by calculating a running median with a 14 day window for every field + filter + chip + quadrant combination (designated `fcqfid` see [Yao et al. (2019)](http://dx.doi.org/10.3847/1538-4357/ab4cf5)) in the fps products. The final time of maximum is determined by taking the mean time of maximum for any g-band or r-band fcqfids taken on the primary ZTF observing grid (see [Bellm et al. (2018)](http://dx.doi.org/10.1088/1538-3873/aaecbe) for more details on the primary and secondary ZTF observing grids).
+
+### Baseline correction
+
+By default, the baseline for each `fcqfid` is determined using observations obtained more than *100 d prior* to the time of maximum light. This threshold is extremely conservative as very few transients have a rise time >100 d. If there are not enough suitable pre-transient observations (i.e., < 25) to measure the baseline correction, the baseline is determined using observations obtained more than *500 d after* the time of maximum light. Again this choice is conservative, though there are transients that have long rise times or that can be detected for years after they are discovered. The baseline correction `C` is calculated via the median `forcediffimflux` value in the baseline region.
+
+We report the total number of observations used to calculate `C` and whether the baseline is measured in observations before or after maximum light. We advise caution when using light curves with few baseline observations (< ~25), and do not provide baseline corrections when there are < 10 observations in the baseline region. If there are > 25 pre-maximum baseline observations or (> 10 pre-maximum AND < 25 post-maximum baseline observations then we use the pre-maximum baseline. Otherwise we use the post-maximum baseline. Pre-maximum baseline measurements are always better than post-maximum measurements because there is always some transient emission present at late times (emission that is statistically insignificant after 500 d, hopefully). 
+
+![Alt text](./../images/baseline_max.jpg?raw=True)
+
+### Scaling the uncertainties
+
+Following the recommendation in the [fps documentation](http://web.ipac.caltech.edu/staff/fmasci/ztf/forcedphot.pdf), we re-scale the uncertainties of all observations based on the chi-squared distribution of observations in the baseline region. In brief, flux measurements in an "empty" patch of sky should follow a gaussian distribution and "excess" scatter points to some systematic uncertainty that has not been properly quantified (subtractions near galaxy nuclei often exhibit such excess scatter). If the chi-squared distribution is >1, then the uncertainties *of all observations* are multiplied by the square root of the reduced chi squared in the baseline region (see also [Yao et al. (2019)](http://dx.doi.org/10.3847/1538-4357/ab4cf5)).
+
+![Alt text](./../images/scale_uncertainties_.jpg?raw=True)
+
 
 ### Calibrated fluxes
 
