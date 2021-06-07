@@ -280,7 +280,7 @@ def get_baseline(fps_file, window="10D",
                                         (fcqf_df.scisigpix.values < 25) & 
                                         (fcqf_df.sciinpseeing.values < 5)
                                        )
-                if len(pre_baseline[0]) > 1:
+                if len(pre_bl[0]) > 1:
                     base_jd = fcqf_df.jd.values[pre_bl]
                     base_flux = fcqf_df.forcediffimflux.values[pre_bl]
                     base_flux_unc = fcqf_df.forcediffimfluxunc.values[pre_bl]
@@ -308,7 +308,7 @@ def get_baseline(fps_file, window="10D",
                                          (fcqf_df.sciinpseeing.values < 5)
                                         )
 
-                if len(post_baseline[0]) > 1:
+                if len(post_bl[0]) > 1:
                     base_jd = fcqf_df.jd.values[post_bl]
                     base_flux = fcqf_df.forcediffimflux.values[post_bl]
                     base_flux_unc = fcqf_df.forcediffimfluxunc.values[post_bl]
