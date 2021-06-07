@@ -41,12 +41,10 @@ def read_ipac_fps(fps_file):
     fp_det : (pandas) DataFrame
         Data frame with fps flux measurements and updated bit mask 
     
-    fcqfid : array-like
-        Array with unique field+chip+quadrant+filter combo for each obs
     """
     
     ipac_version = pd.read_csv(fps_file, skiprows=1, nrows=1).columns[1][2]
-    if ipac_version == '2'
+    if ipac_version == '2':
         fp = pd.read_csv(fps_file, 
                          delim_whitespace=True, comment='#', skiprows=70,
                          names=['ipac_index', 'field', 'ccdid', 'qid',
@@ -176,5 +174,7 @@ def read_ipac_fps(fps_file):
                       fp_det.qid.values*10 + 
                       np.array([fid_dict[x] for x in fp_det['filter'].values])
                      )
+    fp_det['fcqfid'] = fcqfid
 
-    return fp_det, fcqfid
+    return fp_det
+
