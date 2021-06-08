@@ -353,7 +353,7 @@ def get_baseline(fps_file, window="10D",
                      )
                    ):
                     baseline = fcqfid_dict[key]['C_pre']
-                    multiplier = np.sqrt(fcqfid_dict[key]['chi_pre'])
+                    multiplier = max(np.sqrt(fcqfid_dict[key]['chi_pre']), 1)
                     n_baseline = fcqfid_dict[key]['N_pre_peak']
                     pre_or_post = -1
                 elif ( (fcqfid_dict[key]['N_post_peak'] >= 25) or 
@@ -362,7 +362,7 @@ def get_baseline(fps_file, window="10D",
                        )
                      ):
                     baseline = fcqfid_dict[key]['C_post']
-                    multiplier = np.sqrt(fcqfid_dict[key]['chi_post'])
+                    multiplier = max(np.sqrt(fcqfid_dict[key]['chi_post']), 1)
                     n_baseline = fcqfid_dict[key]['N_post_peak']
                     pre_or_post = 1
                 else:
