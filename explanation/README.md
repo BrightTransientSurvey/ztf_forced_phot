@@ -22,7 +22,7 @@ We attempt to flag observations that are not reliable, in case users wish to rem
 
 Note that observations that have been flagged as unreliable are excluded from any baseline calculations.
 
-![Alt text](./../images/flagged_obs.jpg?raw=True)
+<img src="./../images/flagged_obs.jpg" raw=True>
 
 ### Time of maximum
 
@@ -34,14 +34,13 @@ By default, the baseline for each `fcqfid` is determined using observations obta
 
 We report the total number of observations used to calculate `C` and whether the baseline is measured in observations before or after maximum light. We advise caution when using light curves with few baseline observations (< ~25), and do not provide baseline corrections when there are < 10 observations in the baseline region. If there are > 25 pre-maximum baseline observations or (> 10 pre-maximum AND < 25 post-maximum baseline observations then we use the pre-maximum baseline. Otherwise we use the post-maximum baseline. Pre-maximum baseline measurements are always better than post-maximum measurements because there is always some transient emission present at late times (emission that is statistically insignificant after 500 d, hopefully). 
 
-![Alt text](./../images/baseline_max.jpg?raw=True)
+<img src="./../images/baseline_max.jpg" raw=True>
 
 ### Scaling the uncertainties
 
 Following the recommendation in the [fps documentation](http://web.ipac.caltech.edu/staff/fmasci/ztf/forcedphot.pdf), we re-scale the uncertainties of all observations based on the chi-squared distribution of observations in the baseline region. In brief, flux measurements in an "empty" patch of sky should follow a gaussian distribution and "excess" scatter points to some systematic uncertainty that has not been properly quantified (subtractions near galaxy nuclei often exhibit such excess scatter). If the chi-squared distribution is >1, then the uncertainties *of all observations* are multiplied by the square root of the reduced chi squared in the baseline region (see also [Yao et al. (2019)](http://dx.doi.org/10.3847/1538-4357/ab4cf5)).
 
-![Alt text](./../images/scale_uncertainties_.jpg?raw=True)
-
+<img src="./../images/scale_uncertainties.jpg" raw=True>
 
 ### Calibrated fluxes
 
