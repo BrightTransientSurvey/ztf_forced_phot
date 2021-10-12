@@ -121,7 +121,7 @@ To produce the final calibrated flux measurements, the baseline value `C` is
 subtracted from all flux measurements `forcediffimflux`. The uncertainties are
 scaled (see above), and the flux in microJy is calculated as:
 
-<img src="https://render.githubusercontent.com/render/math?math=\Large f_\nu = 10^{29 - 48.6/2.5 - 0.4*\mathrm{zpdiff}*(\mathrm{forcediffimflux} - C)}">
+<img src="https://render.githubusercontent.com/render/math?math=\Large f_\nu = 10^{29 - 48.6/2.5 - 0.4*\mathrm{zpdiff}}*(\mathrm{forcediffimflux} - C)">
 
 ## Final product
 
