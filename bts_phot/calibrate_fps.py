@@ -403,12 +403,12 @@ def get_baseline(fps_file, window="10D",
         write_df['fnu_microJy_unc'] = fnu_microJy_unc
         write_df['passband'] = fp_df['filter'].values
         write_df['programid'] = fp_df.programid.values
-        write_df['fcqfid'] = fcqfid
+        write_df['fcqfid'] = fp_df.fcqfid.values
         write_df['N_baseline'] = n_base_obs
         write_df['pre_or_post'] = which_base
         write_df['poor_conditions'] = bad_obs
         gr_obs = np.where(write_df.fcqfid.values % 10 != 4)
-        fname = file_path.split('forced')[0] + ztf_name + '_fnu.csv'
+        fname = fps_file.split('forced')[0] + ztf_name + '_fnu.csv'
         write_df.iloc[gr_obs].to_csv(fname, index=False)                
                 
     if make_plot:
@@ -464,7 +464,7 @@ def get_baseline(fps_file, window="10D",
 
             fig.tight_layout()
             if save_fig:
-                pname = file_path.split('forced')[0] + ztf_name + '_fnu.png'
+                pname = fps_file.split('forced')[0] + ztf_name + '_fnu.png'                
                 fig.savefig(pname)
                 plt.close(fig)
                 plt.close('all')
