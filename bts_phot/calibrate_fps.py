@@ -189,8 +189,10 @@ def get_baseline(fps_file, window="10D",
     
     Parameters
     ----------
-    fps_file : str
-        File path to an IPAC table text file with fps results
+    fps_file : str or list of str
+        File path to an IPAC table text file with fps results. If a list is 
+        provided forced photometry is read from each file and the results 
+        appended before producing the final output.
     
     window : int, offset, or BaseIndexer subclass (optional, default = '10D')
         Size of the moving window. This is the number of observations used 
@@ -221,9 +223,22 @@ def get_baseline(fps_file, window="10D",
                               
     """
 
-    ztf_name = fps_file.split('forcedphotometry_')[1].split('_')[0]
-    fp_df = read_ipac_fps(fps_file)
-
+    if type(fps_file) == str:
+        ztf_name = fps_file.split('forcedphotometry_')[1].split('_')[0]
+        fp_df = read_ipac_fps(fps_file)
+    elif type(fps_file) == list:
+        ztf_names = [n.split('forcedphotometry_')[1].split('_')[0] for 
+                     n in fps_file]
+        if ztf_names.count(ztf_names[0]) == len(ztf_names):
+            ztf_name = ztf_names[0]
+            fp_df = read_ipac_fps(fps_file[0])
+            for n in fps_file[1:]:
+                extra_df = read_ipac_fps(n)
+                fp_df = fp_df.append(extra_df)
+        else:
+            raise InputError("""Photometric observations can only be 
+                                combined for a single SN""")
+            
     unique_fid = np.unique(fp_df.fcqfid.values).astype(int)
     
     fcqfid_dict = {}
@@ -370,7 +385,7 @@ def get_baseline(fps_file, window="10D",
                     which_base[this_fcqfid] = -1
                     continue
 
-                flux_dn = fp_df.forcediffimflux.values[this_fcqfid] - baseline
+                flux_dn = fp_df.forcediffimflux.values[this_fcqfid] - baseline 
                 unc_fcqfid = fp_df.forcediffimfluxunc.values[this_fcqfid]
                 flux_dn_unc = unc_fcqfid * multiplier
                 zp_fcqfid = fp_df.zpdiff.values[this_fcqfid]
@@ -420,7 +435,7 @@ def get_baseline(fps_file, window="10D",
                      fcqfid_dict[key]['N_post_peak'] >= 10)
                    ):
                     ufid = int(key)
-                    this_fcqfid_good = np.where((fp_df.fcqfid.values == ufid) & 
+                    this_fcqfid_good = np.where((fp_df.fcqfid.values == ufid) &
                                                 (bad_obs == 0)
                                                )
 
@@ -435,7 +450,7 @@ def get_baseline(fps_file, window="10D",
                                             mec=color_dict[ufid % 10], 
                                             ecolor=color_dict[ufid % 10],
                                             mfc='None')
-                    ax.axvline(x = t_peak - jdstart, color = '0.5', ls = '--')
+                    ax.axvline(x = t_peak - jdstart, color = '0.5', ls = '--') 
                     ax.set_ylabel(r'flux ($\mu$Jy)', fontsize = 14)
                     if talk_plot:
                         ax.tick_params(axis='both', colors='white')
@@ -449,7 +464,7 @@ def get_baseline(fps_file, window="10D",
 
             fig.tight_layout()
             if save_fig:
-                pname = file_path.split('forced')[0] + ztf_name + '_fnu.png'                
+                pname = file_path.split('forced')[0] + ztf_name + '_fnu.png'
                 fig.savefig(pname)
                 plt.close(fig)
                 plt.close('all')
