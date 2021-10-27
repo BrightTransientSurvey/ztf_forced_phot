@@ -2,7 +2,7 @@ import pandas as pd
 from packaging import version
 
 if version.parse(pd.__version__) < version.parse("1.3.0"):
-    raise AssertionError("pandas version must be > 1.3.0")
+    raise AssertionError("pandas version must be >= 1.3.0")
 
 import glob
 
