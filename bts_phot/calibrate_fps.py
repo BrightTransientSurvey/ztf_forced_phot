@@ -4,23 +4,21 @@ from packaging import version
 if version.parse(pd.__version__) < version.parse("1.3.0"):
     raise AssertionError("pandas version must be >= 1.3.0")
 
-import glob
-
+import glob, gc, os, pkg_resources
 import numpy as np
+
+import matplotlib.pyplot as plt
+from matplotlib.pyplot import Figure
+
 from scipy import optimize as op
 from scipy.stats import median_abs_deviation
-import matplotlib.pyplot as plt
 
+import astropy.units as u
 from astropy.time import Time
 from astropy.coordinates import EarthLocation, SkyCoord, AltAz
-import astropy.units as u
-
-import gc
-import pkg_resources
 
 
-
-def read_ipac_fps(fps_file):
+def read_ipac_fps(fps_file, rcid_path='cal_data/zp_thresholds_quadID.txt'):
     """Read IPAC fps file, manipulate results into pandas DataFrame
     
     The IPAC forced photometry service (fps; 
@@ -35,6 +33,8 @@ def read_ipac_fps(fps_file):
     ----------
     fps_file : str
         File path to an IPAC table text file with fps results
+
+    rcid_path: str (default = 'cal_data/zp_thresholds_quadID.txt')
     
     Returns
     -------
@@ -113,14 +113,20 @@ def read_ipac_fps(fps_file):
         
     fp_det = fp[union_list].dropna(subset=['forcediffimflux']).copy()
 
-    
     cloudy = np.zeros_like(fp_det.infobitssci.values)
-    
-    rcid_rel_path = 'cal_data/zp_thresholds_quadID.txt'
-    rcid_file = pkg_resources.resource_stream(__name__, rcid_rel_path)
-    rcid_df = pd.read_csv(rcid_file, delim_whitespace=True, 
-                          names=['zp_rcid_g', 'zp_rcid_r', 'zp_rcid_i'],
-                          comment='#')
+    read_opts = {
+        'delim_whitespace': True,
+        'names': ['zp_rcid_g', 'zp_rcid_r', 'zp_rcid_i'],
+        'comment': '#'
+    }
+    if os.path.exists(rcid_path):
+        with open(rcid_path, "r") as f:
+            rcid_df = pd.read_csv(f, **read_opts)
+    else:
+        rcid_df = pd.read_csv(
+            pkg_resources.resource_stream(__name__, rcid_path),
+            **read_opts
+        )
 
     rcid = (fp_det.ccdid.values-1)*4 + fp_det.qid.values
     zp_rcid_g = rcid_df.zp_rcid_g.iloc[rcid]
@@ -181,7 +187,9 @@ def read_ipac_fps(fps_file):
 def get_baseline(fps_file, window="10D", 
                  write_lc=False, 
                  make_plot=False, 
-                 save_fig=False, talk_plot=False):
+                 save_fig=False,
+                 talk_plot=False,
+                 rcid_path='cal_data/zp_thresholds_quadID.txt'):
     
     """
     calculate the baseline region for an IPAC fps light curve and produce 
@@ -202,11 +210,13 @@ def get_baseline(fps_file, window="10D",
         included in the time-period. This is only valid for datetimelike 
         indexes.
     
-    write_lc : bool (optional, default = 'False')
+    write_lc : bool or DataFrame (optional, default = 'False')
         If True, the resulting calibrated photometry is written to a text file
+        If a DataFrame is provided, it will be updated with the resulting calibrated photometry
     
-    make_plot : bool (optional, default = 'False')
+    make_plot : bool or matplotlib Figure (optional, default = 'False')
         If True, a plot of the calibrated light curve is created
+        If a matplotlib figure is provided, it will be used for plotting the calibrated lightcurve
     
     save_fig : bool (optional, default = 'False')
         If True, the resulting light curve plot is saved as a png
@@ -214,6 +224,8 @@ def get_baseline(fps_file, window="10D",
     talk_plot : bool (optional, default = 'False')
         If True, the saved plot has a transparent background and white 
         axes/axis labels for projection on a dark background
+
+    rcid_path: str (default = 'cal_data/zp_thresholds_quadID.txt')
     
     Returns
     -------
@@ -225,15 +237,15 @@ def get_baseline(fps_file, window="10D",
 
     if type(fps_file) == str:
         ztf_name = fps_file.split('forcedphotometry_')[1].split('_')[0]
-        fp_df = read_ipac_fps(fps_file)
+        fp_df = read_ipac_fps(fps_file, rcid_path)
     elif type(fps_file) == list:
         ztf_names = [n.split('forcedphotometry_')[1].split('_')[0] for 
                      n in fps_file]
         if ztf_names.count(ztf_names[0]) == len(ztf_names):
             ztf_name = ztf_names[0]
-            fp_df = read_ipac_fps(fps_file[0])
+            fp_df = read_ipac_fps(fps_file[0], rcid_path)
             for n in fps_file[1:]:
-                extra_df = read_ipac_fps(n)
+                extra_df = read_ipac_fps(n, rcid_path)
                 fp_df = fp_df.append(extra_df)
         else:
             raise InputError("""Photometric observations can only be 
@@ -344,7 +356,8 @@ def get_baseline(fps_file, window="10D",
                     fcqfid_dict[str(ufid)]['N_post_peak'] = len(mask[0])
                 else:
                     fcqfid_dict[str(ufid)]['N_post_peak'] = 0
-    if make_plot + write_lc:
+
+    if make_plot is not False or write_lc is not False:
         fnu_microJy = -999.*np.ones_like(fp_df.forcediffimflux.values)
         fnu_microJy_unc = -999.*np.ones_like(fp_df.forcediffimflux.values)
         n_base_obs = np.zeros_like(fp_df.forcediffimflux.values).astype(int)
@@ -397,8 +410,14 @@ def get_baseline(fps_file, window="10D",
                                                                 0.4*zp_fcqfid)
                 n_base_obs[this_fcqfid] = n_baseline
                 which_base[this_fcqfid] = pre_or_post
-    if write_lc:
-        write_df = pd.DataFrame(fp_df.jd.values, columns=['jd'])
+
+    if write_lc is not False:
+
+        if isinstance(write_lc, pd.DataFrame):
+            write_df = write_lc
+            write_df['jd'] = fp_df.jd.values
+        else:
+            write_df = pd.DataFrame(fp_df.jd.values, columns=['jd'])
         write_df['fnu_microJy'] = fnu_microJy
         write_df['fnu_microJy_unc'] = fnu_microJy_unc
         write_df['passband'] = fp_df['filter'].values
@@ -408,25 +427,28 @@ def get_baseline(fps_file, window="10D",
         write_df['pre_or_post'] = which_base
         write_df['poor_conditions'] = bad_obs
         gr_obs = np.where(write_df.fcqfid.values % 10 != 4)
-        fname = fps_file.split('forced')[0] + ztf_name + '_fnu.csv'
-        write_df.iloc[gr_obs].to_csv(fname, index=False)                
+        if not isinstance(write_lc, pd.DataFrame):
+            fname = fps_file.split('forced')[0] + ztf_name + '_fnu.csv'
+            write_df.iloc[gr_obs].to_csv(fname, index=False)                
                 
-    if make_plot:
-        ### ploting code
-        color_dict = {1: 'MediumAquaMarine',
-                      2: 'Crimson', 
-                      3: 'Goldenrod'}
-        Nplots = 0
+    if make_plot is not False:
+
+        color_dict = {1: 'MediumAquaMarine', 2: 'Crimson', 3: 'Goldenrod'}
+        nplots = 0
         jdstart = 2458119.5
         for key in fcqfid_dict:
             if key != 't_peak' and 'N_pre_peak' in fcqfid_dict[key].keys():
                 if ((fcqfid_dict[key]['N_pre_peak'] > 9) or 
                     (fcqfid_dict[key]['N_post_peak'] > 9)
                    ):
-                    Nplots += 1
-        if Nplots > 0:
-            fig, axes = plt.subplots(Nplots, 1, sharex=True,
-                                     figsize=(8,Nplots*3 + 0.5))
+                    nplots += 1
+
+        if nplots > 0:
+            if make_plot is True:
+                fig = plt.figure(figsize=(8,nplots*3 + 0.5))
+            else:
+                fig = make_plot 
+            axes = fig.subplots(nplots, 1, sharex=True)
             plot_num = 0
             for key in fcqfid_dict:
                 if ((key != 't_peak') and 
@@ -435,16 +457,13 @@ def get_baseline(fps_file, window="10D",
                      fcqfid_dict[key]['N_post_peak'] >= 10)
                    ):
                     ufid = int(key)
-                    this_fcqfid_good = np.where((fp_df.fcqfid.values == ufid) &
-                                                (bad_obs == 0)
-                                               )
-
+                    this_fcqfid_good = np.where((fp_df.fcqfid.values == ufid) & (bad_obs == 0))
 
                     plot_jd = fp_df.jd.values[this_fcqfid_good] - jdstart
                     plot_flux = fnu_microJy[this_fcqfid_good]
                     plot_flux_unc = fnu_microJy_unc[this_fcqfid_good]
 
-                    ax = axes[plot_num] if Nplots > 1 else axes
+                    ax = axes[plot_num] if nplots > 1 else axes
                     ax.errorbar(plot_jd, plot_flux, plot_flux_unc,
                                             fmt='o', 
                                             mec=color_dict[ufid % 10], 
@@ -466,10 +485,10 @@ def get_baseline(fps_file, window="10D",
             if save_fig:
                 pname = fps_file.split('forced')[0] + ztf_name + '_fnu.png'                
                 fig.savefig(pname)
-                plt.close(fig)
-                plt.close('all')
-                del(fig)
-                gc.collect()
-
+                if not isinstance(make_plot, Figure):
+                    plt.close(fig)
+                    plt.close('all')
+                    del(fig)
+                    gc.collect()
 
     return fcqfid_dict
