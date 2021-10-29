@@ -189,6 +189,7 @@ def get_baseline(fps_file, window="10D",
                  make_plot=False, 
                  save_fig=False,
                  talk_plot=False,
+                 save_path='default',
                  rcid_path='cal_data/zp_thresholds_quadID.txt'):
     
     """
@@ -212,11 +213,13 @@ def get_baseline(fps_file, window="10D",
     
     write_lc : bool or DataFrame (optional, default = 'False')
         If True, the resulting calibrated photometry is written to a text file
-        If a DataFrame is provided, it will be updated with the resulting calibrated photometry
+        If a DataFrame is provided, it will be updated with the resulting 
+        calibrated photometry
     
     make_plot : bool or matplotlib Figure (optional, default = 'False')
         If True, a plot of the calibrated light curve is created
-        If a matplotlib figure is provided, it will be used for plotting the calibrated lightcurve
+        If a matplotlib figure is provided, it will be used for plotting 
+        the calibrated lightcurve
     
     save_fig : bool (optional, default = 'False')
         If True, the resulting light curve plot is saved as a png
@@ -224,6 +227,9 @@ def get_baseline(fps_file, window="10D",
     talk_plot : bool (optional, default = 'False')
         If True, the saved plot has a transparent background and white 
         axes/axis labels for projection on a dark background
+    
+    save_path : str (optional, default = 'default')
+        Path for writing light curve figures and ascii files 
 
     rcid_path: str (default = 'cal_data/zp_thresholds_quadID.txt')
     
@@ -238,6 +244,8 @@ def get_baseline(fps_file, window="10D",
     if type(fps_file) == str:
         ztf_name = fps_file.split('forcedphotometry_')[1].split('_')[0]
         fp_df = read_ipac_fps(fps_file, rcid_path)
+        if save_path == 'default':
+            save_path = fps_file.split('forced')[0]
     elif type(fps_file) == list:
         ztf_names = [n.split('forcedphotometry_')[1].split('_')[0] for 
                      n in fps_file]
@@ -247,9 +255,11 @@ def get_baseline(fps_file, window="10D",
             for n in fps_file[1:]:
                 extra_df = read_ipac_fps(n, rcid_path)
                 fp_df = fp_df.append(extra_df)
+            if save_path == 'default':
+                save_path = fps_file[-1].split('forced')[0]
         else:
-            raise InputError("""Photometric observations can only be 
-                                combined for a single SN""")
+            raise AssertionError("""Photometric observations can only be 
+                                    combined for a single SN""")
             
     unique_fid = np.unique(fp_df.fcqfid.values).astype(int)
     
@@ -293,7 +303,16 @@ def get_baseline(fps_file, window="10D",
         if len(t_peak_list) > 1 and np.std(t_peak_list, ddof=1) > 10:
             print('Warning! Large scatter in time of maximum')
         fcqfid_dict['t_peak'] = t_peak
-    
+        around_max = np.where((fp_df.jd.values - t_peak > - 10) & 
+                              (fp_df.jd.values - t_peak < 10))
+        if len(around_max[0]) > 0:
+            diff_flux_around_max = fp_df.forcediffimflux.values[around_max]
+            mag_min = np.nanmin(fp_df.zpdiff.values[around_max] -
+                                2.5*np.log10(diff_flux_around_max))
+            #calculate time when SN signal is "gone" via Co56 decay at z ~ 0.09
+            t_faded = t_peak + (22.5 - mag_min)/0.009
+        else:
+            t_faded = t_peak + 611 # catch strange cases where t_gmax != t_rmax
         for ufid in unique_fid:
             if ufid % 10 == 4:
                 continue
@@ -328,12 +347,12 @@ def get_baseline(fps_file, window="10D",
                 else:
                     fcqfid_dict[str(ufid)]['N_pre_peak'] = 0
 
-                # measure the baseline pre-peak
-                post_bl = np.where((fcqf_df.jd.values - t_peak > 500) & 
-                                         (fcqf_df.infobitssci.values == 0) & 
-                                         (fcqf_df.scisigpix.values < 25) & 
-                                         (fcqf_df.sciinpseeing.values < 5)
-                                        )
+                # measure the baseline post-peak
+                post_bl = np.where((fcqf_df.jd.values > t_faded) & 
+                                   (fcqf_df.infobitssci.values == 0) & 
+                                   (fcqf_df.scisigpix.values < 25) & 
+                                   (fcqf_df.sciinpseeing.values < 5)
+                                  )
 
                 if len(post_bl[0]) > 1:
                     base_jd = fcqf_df.jd.values[post_bl]
@@ -362,6 +381,8 @@ def get_baseline(fps_file, window="10D",
         fnu_microJy_unc = -999.*np.ones_like(fp_df.forcediffimflux.values)
         n_base_obs = np.zeros_like(fp_df.forcediffimflux.values).astype(int)
         which_base = np.zeros_like(fp_df.forcediffimflux.values).astype(int)
+        C_baseline = np.zeros_like(fp_df.forcediffimflux.values).astype(int)
+        sys_sigma = np.zeros_like(fp_df.forcediffimflux.values).astype(int)
         
         bad_obs = np.zeros_like(fp_df.ccdid.values)
         bad_obs[np.where((fp_df.infobitssci.values > 0) | 
@@ -410,7 +431,10 @@ def get_baseline(fps_file, window="10D",
                                                                 0.4*zp_fcqfid)
                 n_base_obs[this_fcqfid] = n_baseline
                 which_base[this_fcqfid] = pre_or_post
+                C_baseline[this_fcqfid] = baseline
+                sys_sigma[this_fcqfid] = multiplier
 
+    
     if write_lc is not False:
 
         if isinstance(write_lc, pd.DataFrame):
@@ -425,10 +449,13 @@ def get_baseline(fps_file, window="10D",
         write_df['fcqfid'] = fp_df.fcqfid.values
         write_df['N_baseline'] = n_base_obs
         write_df['pre_or_post'] = which_base
+        write_df['zpdiff'] = fp_df.zpdiff.values
+        write_df['C'] = C_baseline
+        write_df['sys_unc_factor'] = sys_sigma
         write_df['poor_conditions'] = bad_obs
         gr_obs = np.where(write_df.fcqfid.values % 10 != 4)
         if not isinstance(write_lc, pd.DataFrame):
-            fname = fps_file.split('forced')[0] + ztf_name + '_fnu.csv'
+            fname = save_path + ztf_name + '_fnu.csv'
             write_df.iloc[gr_obs].to_csv(fname, index=False)                
                 
     if make_plot is not False:
@@ -457,7 +484,8 @@ def get_baseline(fps_file, window="10D",
                      fcqfid_dict[key]['N_post_peak'] >= 10)
                    ):
                     ufid = int(key)
-                    this_fcqfid_good = np.where((fp_df.fcqfid.values == ufid) & (bad_obs == 0))
+                    this_fcqfid_good = np.where((fp_df.fcqfid.values == ufid) &
+                                                (bad_obs == 0))
 
                     plot_jd = fp_df.jd.values[this_fcqfid_good] - jdstart
                     plot_flux = fnu_microJy[this_fcqfid_good]
@@ -469,8 +497,16 @@ def get_baseline(fps_file, window="10D",
                                             mec=color_dict[ufid % 10], 
                                             ecolor=color_dict[ufid % 10],
                                             mfc='None')
-                    ax.axvline(x = t_peak - jdstart, color = '0.5', ls = '--') 
+                    ax.axvline(x = t_peak - jdstart, color = '0.5', ls = '--')
+                    ax.axhline(y = 0, color = '0.5',
+                               ls = (0, [8,1.5,1,1.5]), lw = 0.5, alpha=0.75)
+                    ax.axvspan(0, t_peak - jdstart - 100, 
+                               color='Cornsilk', alpha=0.6, lw=0)
+                    ax.axvspan(t_faded - jdstart, 1e6, 
+                               color='Cornsilk', alpha=0.6, lw=0)
                     ax.set_ylabel(r'flux ($\mu$Jy)', fontsize = 14)
+                    ax.set_xlim(np.min(fp_df.jd.values - jdstart)-10, 
+                                np.max(fp_df.jd.values - jdstart)+10)
                     if talk_plot:
                         ax.tick_params(axis='both', colors='white')
                         for spine in ['top','bottom','left','right']:
@@ -483,7 +519,7 @@ def get_baseline(fps_file, window="10D",
 
             fig.tight_layout()
             if save_fig:
-                pname = fps_file.split('forced')[0] + ztf_name + '_fnu.png'                
+                pname = save_path + ztf_name + '_fnu.png'                
                 fig.savefig(pname)
                 if not isinstance(make_plot, Figure):
                     plt.close(fig)
