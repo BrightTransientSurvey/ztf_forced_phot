@@ -7,6 +7,7 @@ if version.parse(pd.__version__) < version.parse("1.3.0"):
 import glob, gc, os, pkg_resources
 import numpy as np
 
+import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import Figure
 
@@ -260,7 +261,8 @@ def get_baseline(fps_file, window="10D",
         else:
             raise AssertionError("""Photometric observations can only be 
                                     combined for a single SN""")
-            
+    fp_df.drop_duplicates(['pid','forcediffimflux', 'forcediffimfluxunc'], 
+                          inplace=True)
     unique_fid = np.unique(fp_df.fcqfid.values).astype(int)
     
     fcqfid_dict = {}
@@ -376,13 +378,13 @@ def get_baseline(fps_file, window="10D",
                 else:
                     fcqfid_dict[str(ufid)]['N_post_peak'] = 0
 
-    if make_plot is not False or write_lc is not False:
+    if make_plot or write_lc:
         fnu_microJy = -999.*np.ones_like(fp_df.forcediffimflux.values)
         fnu_microJy_unc = -999.*np.ones_like(fp_df.forcediffimflux.values)
         n_base_obs = np.zeros_like(fp_df.forcediffimflux.values).astype(int)
         which_base = np.zeros_like(fp_df.forcediffimflux.values).astype(int)
-        C_baseline = np.zeros_like(fp_df.forcediffimflux.values).astype(int)
-        sys_sigma = np.zeros_like(fp_df.forcediffimflux.values).astype(int)
+        C_baseline = np.zeros_like(fp_df.forcediffimflux.values)
+        sys_sigma = np.zeros_like(fp_df.forcediffimflux.values)
         
         bad_obs = np.zeros_like(fp_df.ccdid.values)
         bad_obs[np.where((fp_df.infobitssci.values > 0) | 
@@ -527,4 +529,4 @@ def get_baseline(fps_file, window="10D",
                     del(fig)
                     gc.collect()
 
-    return fcqfid_dict
+    return fcqfid_dict    
