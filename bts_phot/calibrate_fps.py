@@ -1,11 +1,6 @@
-import pandas as pd
-from packaging import version
-
-if version.parse(pd.__version__) < version.parse("1.3.0"):
-    raise AssertionError("pandas version must be >= 1.3.0")
-
 import gc, pkg_resources
 import numpy as np
+import pandas as pd
 
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import Figure
@@ -15,6 +10,8 @@ from scipy.stats import median_abs_deviation
 import astropy.units as u
 from astropy.time import Time
 from astropy.coordinates import EarthLocation, SkyCoord, AltAz
+
+pkg_resources.require("pandas>=1.3")
 
 
 def read_ipac_fps(fps_file):
