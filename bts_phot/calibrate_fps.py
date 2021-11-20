@@ -228,7 +228,8 @@ def get_baseline(fps_file, window="10D",
     """
 
     if isinstance(fps_file, str):
-        ztf_name = fps_file.split('forcedphotometry_')[1].split('_')[0]
+        if save_fig or write_lc is True:
+            ztf_name = fps_file.split('forcedphotometry_')[1].split('_')[0]
         fp_df = read_ipac_fps(fps_file)
         if save_path == 'default':
             save_path = fps_file.split('forced')[0]
