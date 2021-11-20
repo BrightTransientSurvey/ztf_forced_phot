@@ -4,7 +4,7 @@ from packaging import version
 if version.parse(pd.__version__) < version.parse("1.3.0"):
     raise AssertionError("pandas version must be >= 1.3.0")
 
-import gc, os, pkg_resources
+import gc, pkg_resources
 import numpy as np
 
 import matplotlib.pyplot as plt
@@ -17,7 +17,7 @@ from astropy.time import Time
 from astropy.coordinates import EarthLocation, SkyCoord, AltAz
 
 
-def read_ipac_fps(fps_file, rcid_path='cal_data/zp_thresholds_quadID.txt'):
+def read_ipac_fps(fps_file):
     """Read IPAC fps file, manipulate results into pandas DataFrame
 
     The IPAC forced photometry service (fps;
@@ -32,8 +32,6 @@ def read_ipac_fps(fps_file, rcid_path='cal_data/zp_thresholds_quadID.txt'):
     ----------
     fps_file : str
         File path to an IPAC table text file with fps results
-
-    rcid_path: str (default = 'cal_data/zp_thresholds_quadID.txt')
 
     Returns
     -------
@@ -117,14 +115,11 @@ def read_ipac_fps(fps_file, rcid_path='cal_data/zp_thresholds_quadID.txt'):
         'names': ['zp_rcid_g', 'zp_rcid_r', 'zp_rcid_i'],
         'comment': '#'
     }
-    if os.path.exists(rcid_path):
-        with open(rcid_path, "r") as f:
-            rcid_df = pd.read_csv(f, **read_opts)
-    else:
-        rcid_df = pd.read_csv(
-            pkg_resources.resource_stream(__name__, rcid_path),
-            **read_opts
-        )
+
+    rcid_df = pd.read_csv(
+        pkg_resources.resource_stream(__name__, 'cal_data/zp_thresholds_quadID.txt'),
+        **read_opts
+    )
 
     rcid = (fp_det.ccdid.values-1)*4 + fp_det.qid.values
     zp_rcid_g = rcid_df.zp_rcid_g.iloc[rcid]
@@ -187,8 +182,7 @@ def get_baseline(fps_file, window="10D",
                  make_plot=False,
                  save_fig=False,
                  talk_plot=False,
-                 save_path='default',
-                 rcid_path='cal_data/zp_thresholds_quadID.txt'):
+                 save_path='default'):
 
     """
     calculate the baseline region for an IPAC fps light curve and produce
@@ -229,8 +223,6 @@ def get_baseline(fps_file, window="10D",
     save_path : str (optional, default = 'default')
         Path for writing light curve figures and ascii files
 
-    rcid_path: str (default = 'cal_data/zp_thresholds_quadID.txt')
-
     Returns
     -------
     fcqfid_dict : dict
@@ -238,19 +230,19 @@ def get_baseline(fps_file, window="10D",
         fcqfid
     """
 
-    if type(fps_file) == str:
+    if isinstance(fps_file, str):
         ztf_name = fps_file.split('forcedphotometry_')[1].split('_')[0]
-        fp_df = read_ipac_fps(fps_file, rcid_path)
+        fp_df = read_ipac_fps(fps_file)
         if save_path == 'default':
             save_path = fps_file.split('forced')[0]
-    elif type(fps_file) == list:
+    elif isinstance(fps_file, list):
         ztf_names = [n.split('forcedphotometry_')[1].split('_')[0] for
                      n in fps_file]
         if ztf_names.count(ztf_names[0]) == len(ztf_names):
             ztf_name = ztf_names[0]
-            fp_df = read_ipac_fps(fps_file[0], rcid_path)
+            fp_df = read_ipac_fps(fps_file[0])
             for n in fps_file[1:]:
-                extra_df = read_ipac_fps(n, rcid_path)
+                extra_df = read_ipac_fps(n)
                 fp_df = fp_df.append(extra_df)
             if save_path == 'default':
                 save_path = fps_file[-1].split('forced')[0]
