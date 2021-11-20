@@ -366,7 +366,7 @@ def get_baseline(fps_file, window="10D",
                 else:
                     fcqfid_dict[str(ufid)]['N_post_peak'] = 0
 
-    if make_plot or write_lc:
+    if make_plot is not False or write_lc is not False:
         fnu_microJy = -999.*np.ones_like(fp_df.forcediffimflux.values)
         fnu_microJy_unc = -999.*np.ones_like(fp_df.forcediffimflux.values)
         n_base_obs = np.zeros_like(fp_df.forcediffimflux.values).astype(int)
