@@ -1,0 +1,8 @@
+include LICENSE
+recursive-exclude * __pycache__
+recursive-exclude * *.pyc
+prune explanation*
+prune images*
+prune fps_data*
+exclude mypy.ini
+exclude .gitignore
