@@ -460,10 +460,8 @@ def get_baseline(fps_file, window="10D",
                     nplots += 1
 
         if nplots > 0:
-            if make_plot is True:
-                fig = plt.figure(figsize=(8, nplots * 3 + 0.5))
-            else:
-                fig = make_plot
+            fig = plt.figure() if make_plot is True else make_plot
+            fig.set_size_inches(8, nplots * 3 + 0.5)
             axes = fig.subplots(nplots, 1, sharex=True)
             plot_num = 0
             for key in fcqfid_dict:
