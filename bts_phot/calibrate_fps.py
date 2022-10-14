@@ -318,6 +318,45 @@ def get_baseline(fps_file, window="10D",
                 this_fcqfid = np.where(fp_df.fcqfid.values == ufid)
                 fcqf_df = fp_df.iloc[this_fcqfid].copy()
 
+                # measure the baseline
+                bl = np.where(((t_peak - fcqf_df.jd.values > 100) |
+                              (fcqf_df.jd.values > t_faded)) &
+                              (fcqf_df.infobitssci.values == 0)
+                             )
+                if len(bl[0]) > 1:
+                    base_flux = fcqf_df.forcediffimflux.values[bl]
+                    base_flux_unc = fcqf_df.forcediffimfluxunc.values[bl]
+                    mask = np.where(np.abs( (base_flux - np.median(base_flux)
+                                            )/base_flux_unc
+                                          ) <= 5)
+                    if len(mask[0]) > 2:
+                        ##### WARNING WARNING WARNING THIS SHOULD BE MEDIAN
+                        non_det = base_flux[mask]
+                        Cmean = np.average(non_det,
+                                           weights=1/base_flux_unc[mask]**2)
+                        sum_diff_sq = np.sum( ( (non_det - Cmean) /
+                                                (base_flux_unc[mask])
+                                              )**2
+                                            )
+                        chi = 1/(len(mask[0])-1)*sum_diff_sq
+                        mean = np.mean(non_det)
+                        median = np.median(non_det)
+                        low_limit = np.percentile(non_det, 10)
+                        high_limit = np.percentile(non_det, 90)
+                        trim = np.where((non_det > low_limit) &
+                                        (non_det < high_limit)
+                                        )
+                        trim_mean = np.mean(non_det[trim])
+                        if len(non_det[trim]) == 0:
+                            print(f'{ztf_name} {ufid} bl empty')
+                        scatter = np.diff(np.percentile(non_det, (16,84)))[0]/2
+                        fcqfid_dict[str(ufid)]['C_bl'] = Cmean
+                        fcqfid_dict[str(ufid)]['chi_bl'] = chi
+                        fcqfid_dict[str(ufid)]['mean_bl'] = mean
+                        fcqfid_dict[str(ufid)]['median_bl'] = median
+                        fcqfid_dict[str(ufid)]['trim_mean_bl'] = trim_mean
+                        fcqfid_dict[str(ufid)]['scatter_bl'] = scatter
+                    fcqfid_dict[str(ufid)]['N_bl'] = len(mask[0])                
                 # measure the baseline pre-peak
                 if deprecated:
                     pre_bl = np.where((t_peak - fcqf_df.jd.values > 100) &
@@ -353,6 +392,8 @@ def get_baseline(fps_file, window="10D",
                                         (non_det < high_limit)
                                         )
                         trim_mean = np.mean(non_det[trim])
+                        if len(non_det[trim]) == 0:
+                            print(f'{ztf_name} {ufid} pre empty')
                         scatter = np.diff(np.percentile(non_det, (16,84)))[0]/2
                         fcqfid_dict[str(ufid)]['C_pre'] = Cmean
                         fcqfid_dict[str(ufid)]['chi_pre'] = chi
@@ -400,6 +441,8 @@ def get_baseline(fps_file, window="10D",
                                         (non_det < high_limit)
                                         )
                         trim_mean = np.mean(non_det[trim])
+                        if len(non_det[trim]) == 0:
+                            print(f'{ztf_name} {ufid} post empty')
                         scatter = np.diff(np.percentile(non_det, (16,84)))[0]/2
                         fcqfid_dict[str(ufid)]['C_post'] = Cmean
                         fcqfid_dict[str(ufid)]['chi_post'] = chi
@@ -414,10 +457,11 @@ def get_baseline(fps_file, window="10D",
     if make_plot is not False or write_lc is not False:
         fnu_microJy = -999.*np.ones_like(fp_df.forcediffimflux.values)
         fnu_microJy_unc = -999.*np.ones_like(fp_df.forcediffimflux.values)
-        n_base_obs = np.zeros_like(fp_df.forcediffimflux.values).astype(int)
-        which_base = np.zeros_like(fp_df.forcediffimflux.values).astype(int)
-        C_baseline = np.zeros_like(fp_df.forcediffimflux.values)
         sys_sigma = np.zeros_like(fp_df.forcediffimflux.values)
+        if deprecated:
+            n_base_obs = np.zeros_like(fp_df.forcediffimflux.values).astype(int)
+            which_base = np.zeros_like(fp_df.forcediffimflux.values).astype(int)
+            C_baseline = np.zeros_like(fp_df.forcediffimflux.values)
 
         bad_obs = np.zeros_like(fp_df.ccdid.values)
         if deprecated:
@@ -434,98 +478,122 @@ def get_baseline(fps_file, window="10D",
             if (key != 't_peak' and 'N_pre_peak' in fcqfid_dict[key].keys()):
                 ufid = int(key)
                 this_fcqfid = np.where(fp_df.fcqfid.values == ufid)
-
-                if ( (fcqfid_dict[key]['N_pre_peak'] >= 25) or
-                     ( (fcqfid_dict[key]['N_pre_peak'] >= 10) and
-                       (fcqfid_dict[key]['N_post_peak'] < 25)
-                     )
-                   ):
-                    baseline = fcqfid_dict[key]['C_pre']
-                    if deprecated:
-                        sys_unc = max(fcqfid_dict[key]['chi_pre']**0.5, 1)
-                    else:
-                        good_fcqfid = np.intersect1d(this_fcqfid, good_flag)
-                        chi_ser = fp_df.forcediffimchisq.iloc[good_fcqfid].copy()
-                        med_chi = np.median(chi_ser.values)
-                        if np.mean(chi_ser.values) < 1.5:
-                            sys_unc = med_chi**0.5 * np.ones_like(fp_df.zpdiff.iloc[this_fcqfid])
-                        else: 
-                            try:
-                                model = SuperSmoother()
-                                model.fit(fp_df.forcediffimflux.iloc[good_fcqfid], 
-                                          fp_df.forcediffimchisq.iloc[good_fcqfid])
-                                # find the smoothed fit to the data
-                                # interpolate to non-good obs
-                                yfit = model.predict(np.sort(fp_df.forcediffimflux.iloc[good_fcqfid].values)) 
-                                interp_ss = np.interp(fp_df.forcediffimflux.iloc[this_fcqfid].values,
-                                                    np.sort(fp_df.forcediffimflux.iloc[good_fcqfid].values), 
-                                                    yfit)
-                                # Kludge hack
-                                if np.isnan(interp_ss).all() or np.min(interp_ss) < 0:
-                                    print(ztfname)
-                                sys_unc = np.interp(fp_df.forcediffimflux.iloc[this_fcqfid].values,
-                                                    np.sort(fp_df.forcediffimflux.iloc[good_fcqfid].values), 
-                                                    yfit)**0.5
-                            except:                            
-                                chi_ser.index = pd.to_datetime(fp_df.iloc[good_fcqfid].forcediffimflux.values, 
-                                                               unit='s', origin='unix')
-                                chi_ser.sort_index(inplace=True)
-                                runmed = chi_ser.rolling('1000s', center=True).median().values
-                                sys_unc = np.interp(fp_df.forcediffimflux.iloc[this_fcqfid].values, 
-                                                    np.sort(fp_df.forcediffimflux.iloc[good_fcqfid].values), 
-                                                    runmed)**0.5
-                        
-                    n_baseline = fcqfid_dict[key]['N_pre_peak']
-                    pre_or_post = -1
-                elif ( (fcqfid_dict[key]['N_post_peak'] >= 25) or
-                       ( (fcqfid_dict[key]['N_pre_peak'] < 10) and
-                         (fcqfid_dict[key]['N_post_peak'] >= 10)
-                       )
-                     ):
-                    baseline = fcqfid_dict[key]['C_post']
-                    if deprecated:
-                        sys_unc = max(fcqfid_dict[key]['chi_post']**0.5, 1)
-                    else:
-                        good_fcqfid = np.intersect1d(this_fcqfid, good_flag)
-                        chi_ser = fp_df.forcediffimchisq.iloc[good_fcqfid].copy()
-                        med_chi = np.median(chi_ser.values)
-                        if np.mean(chi_ser.values) < 1.5:
-                            sys_unc = med_chi**0.5 * np.ones_like(fp_df.zpdiff.iloc[this_fcqfid])
-                        else: 
-                            try:
-                                model = SuperSmoother()
-                                model.fit(fp_df.forcediffimflux.iloc[good_fcqfid], 
-                                          fp_df.forcediffimchisq.iloc[good_fcqfid])
-                                # find the smoothed fit to the data
-                                # interpolate to non-good obs
-                                yfit = model.predict(np.sort(fp_df.forcediffimflux.iloc[good_fcqfid].values)) 
-                                interp_ss = np.interp(fp_df.forcediffimflux.iloc[this_fcqfid].values,
-                                                    np.sort(fp_df.forcediffimflux.iloc[good_fcqfid].values), 
-                                                    yfit)
-                                # Kludge hack
-                                if np.isnan(interp_ss).all() or np.min(interp_ss) < 0:
-                                    print(ztfname)
-                                sys_unc = np.interp(fp_df.forcediffimflux.iloc[this_fcqfid].values,
-                                                    np.sort(fp_df.forcediffimflux.iloc[good_fcqfid].values), 
-                                                    yfit)**0.5
-                            except:                            
-                                chi_ser.index = pd.to_datetime(fp_df.iloc[good_fcqfid].forcediffimflux.values, 
-                                                               unit='s', origin='unix')
-                                chi_ser.sort_index(inplace=True)
-                                runmed = chi_ser.rolling('1000s', center=True).median().values
-                                sys_unc = np.interp(fp_df.forcediffimflux.iloc[this_fcqfid].values, 
-                                                    np.sort(fp_df.forcediffimflux.iloc[good_fcqfid].values), 
-                                                    runmed)**0.5
-                        
-                    n_baseline = fcqfid_dict[key]['N_post_peak']
-                    pre_or_post = 1
-                    #### DELETE BELOW
-                    if np.isnan(sys_unc).all():
-                        print(ztfname)
+                if deprecated:
+                    sys_unc = max(fcqfid_dict[key]['chi_pre']**0.5, 1)
                 else:
-                    n_base_obs[this_fcqfid] = fcqfid_dict[key]['N_pre_peak']
-                    which_base[this_fcqfid] = -1
-                    continue
+                    good_fcqfid = np.intersect1d(this_fcqfid, good_flag)
+                    chi_ser = fp_df.forcediffimchisq.iloc[good_fcqfid].copy()
+                    good_diffl = fp_df.forcediffimflux.iloc[good_fcqfid].values
+                    this_diffl = fp_df.forcediffimflux.iloc[this_fcqfid].values
+                    med_chi = np.median(chi_ser.values)
+                    if np.mean(chi_ser.values) < 1.5:
+                        sys_unc = med_chi**0.5 * np.ones_like(this_diffl)
+                    elif len(good_fcqfid) > 0: 
+                        try:
+                            model = SuperSmoother()
+                            model.fit(fp_df.forcediffimflux.iloc[good_fcqfid], 
+                                      fp_df.forcediffimchisq.iloc[good_fcqfid])
+                            # find the smoothed fit to the data
+                            # interpolate to non-good obs
+                            yfit = model.predict(np.sort(good_diffl)) 
+                            chi_interp = np.interp(this_diffl,
+                                                np.sort(good_diffl), 
+                                                yfit)
+                            chi_interp = np.where(chi_interp < 1, 1, 
+                                                  chi_interp)
+                            sys_unc = chi_interp**0.5
+                            if np.isnan(sys_unc).any():
+                                print(f'{ztf_name} {ufid} bad interp')
+                        except:                            
+                            chi_ser.index = pd.to_datetime(good_diffl, 
+                                                           unit='s', 
+                                                           origin='unix')
+                            chi_ser.sort_index(inplace=True)
+                            runmed = chi_ser.rolling('1000s', 
+                                                     center=True).median()
+                            sys_unc = np.interp(this_diffl, 
+                                                np.sort(good_diffl), 
+                                                runmed.values)**0.5
+                    else:
+                        continue
+
+
+                if deprecated:
+                    if ( (fcqfid_dict[key]['N_pre_peak'] >= 25) or
+                         ( (fcqfid_dict[key]['N_pre_peak'] >= 10) and
+                           (fcqfid_dict[key]['N_post_peak'] < 25)
+                         )
+                       ):
+                        baseline = fcqfid_dict[key]['C_pre']                        
+                        n_baseline = fcqfid_dict[key]['N_pre_peak']
+                        pre_or_post = -1
+                    elif ( (fcqfid_dict[key]['N_post_peak'] >= 25) or
+                           ( (fcqfid_dict[key]['N_pre_peak'] < 10) and
+                             (fcqfid_dict[key]['N_post_peak'] >= 10)
+                           )
+                         ):
+                        baseline = fcqfid_dict[key]['C_post']
+                        n_baseline = fcqfid_dict[key]['N_post_peak']
+                        pre_or_post = 1
+                    else:
+                        n_base_obs[this_fcqfid] = fcqfid_dict[key]['N_pre_peak']
+                        which_base[this_fcqfid] = -1
+                        continue
+                else:
+                    # determine if there is emission in pre/post SN baseline
+                    if 'C_bl' not in fcqfid_dict[key].keys():
+                        print('{} no C_bl'.format(ztf_name))
+                        continue
+                    baseline = fcqfid_dict[key]['C_bl']
+                    fcqfid_dict[key]['which_bl'] = 'pre+post SN'
+                    
+                    good_df = fp_df.iloc[good_fcqfid].copy()
+                    flux_series = good_df.forcediffimflux
+                    roll_med = flux_series.rolling("14D",
+                                                   center=True).median().values
+                    this_ib = fp_df.iloc[this_fcqfid].infobitssci
+                    scale = sys_unc[np.where(this_ib == 0)]
+                    scale_unc = scale * good_df.forcediffimfluxunc.values
+
+                    pre_bl = np.where(t_peak - good_df.jd.values > 100)
+                    pre_em = (roll_med[pre_bl] - baseline)/scale_unc[pre_bl]
+                    
+                    post_bl = np.where(good_df.jd.values > t_faded)
+                    post_em = (roll_med[post_bl] - baseline)/scale_unc[post_bl]
+                    
+                    #### So many nested ifs - cover your eye's Guido
+                    if len(pre_em) < 10 and len(post_em) < 10:
+                        continue
+                    
+                    pre_rise_em = False
+                    if len(pre_em) == 0:
+                        fcqfid_dict[key]['which_bl'] = 'post SN'
+                    if len(pre_em) >= 1:
+                        if len(pre_bl[0]) < 5 or np.max(pre_em) >= 6:
+                            if len(post_em) >= 10:
+                                baseline = fcqfid_dict[key]['C_post']
+                                fcqfid_dict[key]['which_bl'] = 'post SN'
+                            if np.max(pre_em) >= 6:
+                                print('Warning {} pre-SN'.format(ztf_name))
+                                fcqfid_dict[key]['Warning'] = 'long rise'
+                                pre_rise_em = True
+                    post_rise_em = False
+                    if len(post_em) == 0:
+                        fcqfid_dict[key]['which_bl'] = 'pre SN'
+                    if len(post_em) >= 1:
+                        if len(post_em) < 5 or np.max(post_em) >= 6:
+                            if len(pre_em) >= 10:
+                                baseline = fcqfid_dict[key]['C_pre']
+                                fcqfid_dict[key]['which_bl'] = 'pre SN'
+                            if np.max(post_em) >= 6:
+                                print('Warning {} post-SN'.format(ztf_name))
+                                fcqfid_dict[key]['Warning'] = 'long decline'
+                                post_rise_em = True
+                    if pre_rise_em + post_rise_em == 2:
+                        baseline = fcqfid_dict[key]['C_bl']
+                        print('Warning {} bad baseline'.format(ztf_name))
+                        fcqfid_dict[key]['Warning'] = 'bad baseline'
+                        fcqfid_dict[key]['which_bl'] = 'pre+post SN'
 
                 flux_dn = fp_df.forcediffimflux.values[this_fcqfid] - baseline
                 unc_fcqfid = fp_df.forcediffimfluxunc.values[this_fcqfid]
@@ -537,10 +605,13 @@ def get_baseline(fps_file, window="10D",
                 fnu_microJy_unc[this_fcqfid] = flux_dn_unc*10**(29 -
                                                                 48.6/2.5 -
                                                                 0.4*zp_fcqfid)
-                n_base_obs[this_fcqfid] = n_baseline
-                which_base[this_fcqfid] = pre_or_post
-                C_baseline[this_fcqfid] = baseline
-                sys_sigma[this_fcqfid] = sys_unc
+                if deprecated:
+                    n_base_obs[this_fcqfid] = n_baseline
+                    which_base[this_fcqfid] = pre_or_post
+                    C_baseline[this_fcqfid] = baseline
+                else:
+                    sys_sigma[this_fcqfid] = sys_unc
+                    
 
 
     if write_lc is not False:
@@ -555,12 +626,14 @@ def get_baseline(fps_file, window="10D",
         write_df['passband'] = fp_df['filter'].values
         write_df['programid'] = fp_df.programid.values
         write_df['fcqfid'] = fp_df.fcqfid.values
-        write_df['N_baseline'] = n_base_obs
-        write_df['pre_or_post'] = which_base
         write_df['zpdiff'] = fp_df.zpdiff.values
-        write_df['C'] = C_baseline
         write_df['sys_unc_factor'] = sys_sigma
         write_df['poor_conditions'] = bad_obs
+        if deprecated:
+            write_df['C'] = C_baseline
+            write_df['N_baseline'] = n_base_obs
+            write_df['pre_or_post'] = which_base
+
         gr_obs = np.where(write_df.fcqfid.values % 10 != 4)
         if not isinstance(write_lc, pd.DataFrame):
             fname = save_path + ztf_name + '_fnu.csv'
