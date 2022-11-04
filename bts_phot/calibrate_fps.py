@@ -409,6 +409,10 @@ def get_baseline(fps_file, window="10D",
                         trim = np.where((non_det > low_limit) &
                                         (non_det < high_limit)
                                         )
+                        trim_mean = np.mean(non_det[trim])
+                        if len(non_det[trim]) == 0:
+                            print(f'{ztf_name} {ufid} post empty')
+                        scatter = np.diff(np.percentile(non_det, (16,84)))[0]/2
                         
                         fcqfid_dict[str(ufid)]['C_pre'] = Cmean
                         fcqfid_dict[str(ufid)]['chi_pre'] = chi
@@ -466,6 +470,7 @@ def get_baseline(fps_file, window="10D",
                         if len(non_det[trim]) == 0:
                             print(f'{ztf_name} {ufid} post empty')
                         scatter = np.diff(np.percentile(non_det, (16,84)))[0]/2
+                        
                         fcqfid_dict[str(ufid)]['C_post'] = Cmean
                         fcqfid_dict[str(ufid)]['chi_post'] = chi
                         fcqfid_dict[str(ufid)]['mean_post'] = mean
