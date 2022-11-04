@@ -331,6 +331,8 @@ def get_baseline(fps_file, window="10D",
                                           ) <= 5)
                     if len(mask[0]) > 2:
                         ##### WARNING WARNING WARNING THIS SHOULD BE MEDIAN
+                        # Cmean still reported, using median for baseline - AW
+
                         non_det = base_flux[mask]
                         Cmean = np.average(non_det,
                                            weights=1/base_flux_unc[mask]**2)
@@ -341,6 +343,13 @@ def get_baseline(fps_file, window="10D",
                         chi = 1/(len(mask[0])-1)*sum_diff_sq
                         mean = np.mean(non_det)
                         median = np.median(non_det)
+                        # using bootstrapping to place unc on median
+                        medians = np.empty(1000)
+                        for i in range(1000): 
+                            medians[i] = np.median(np.random.choice(non_det, 
+                                         size = len(non_det), replace = True))
+                        median_unc = np.diff(np.percentile(medians, (16,84)))[0]/2
+                        
                         low_limit = np.percentile(non_det, 10)
                         high_limit = np.percentile(non_det, 90)
                         trim = np.where((non_det > low_limit) &
@@ -350,10 +359,12 @@ def get_baseline(fps_file, window="10D",
                         if len(non_det[trim]) == 0:
                             print(f'{ztf_name} {ufid} bl empty')
                         scatter = np.diff(np.percentile(non_det, (16,84)))[0]/2
+                        
                         fcqfid_dict[str(ufid)]['C_bl'] = Cmean
                         fcqfid_dict[str(ufid)]['chi_bl'] = chi
                         fcqfid_dict[str(ufid)]['mean_bl'] = mean
                         fcqfid_dict[str(ufid)]['median_bl'] = median
+                        fcqfid_dict[str(ufid)]['median_unc_bl'] = median_unc
                         fcqfid_dict[str(ufid)]['trim_mean_bl'] = trim_mean
                         fcqfid_dict[str(ufid)]['scatter_bl'] = scatter
                     fcqfid_dict[str(ufid)]['N_bl'] = len(mask[0])                
@@ -386,19 +397,24 @@ def get_baseline(fps_file, window="10D",
                         chi = 1/(len(mask[0])-1)*sum_diff_sq
                         mean = np.mean(non_det)
                         median = np.median(non_det)
+                        
+                        medians = np.empty(1000)
+                        for i in range(1000): 
+                            medians[i] = np.median(np.random.choice(non_det, 
+                                         size = len(non_det), replace = True))
+                        median_unc = np.diff(np.percentile(medians, (16,84)))[0]/2
+                        
                         low_limit = np.percentile(non_det, 10)
                         high_limit = np.percentile(non_det, 90)
                         trim = np.where((non_det > low_limit) &
                                         (non_det < high_limit)
                                         )
-                        trim_mean = np.mean(non_det[trim])
-                        if len(non_det[trim]) == 0:
-                            print(f'{ztf_name} {ufid} pre empty')
-                        scatter = np.diff(np.percentile(non_det, (16,84)))[0]/2
+                        
                         fcqfid_dict[str(ufid)]['C_pre'] = Cmean
                         fcqfid_dict[str(ufid)]['chi_pre'] = chi
                         fcqfid_dict[str(ufid)]['mean_pre'] = mean
                         fcqfid_dict[str(ufid)]['median_pre'] = median
+                        fcqfid_dict[str(ufid)]['median_unc_pre'] = median_unc
                         fcqfid_dict[str(ufid)]['trim_mean_pre'] = trim_mean
                         fcqfid_dict[str(ufid)]['scatter_pre'] = scatter
                     fcqfid_dict[str(ufid)]['N_pre_peak'] = len(mask[0])
@@ -435,6 +451,12 @@ def get_baseline(fps_file, window="10D",
                         chi = 1/(len(mask[0])-1)*sum_diff_sq
                         mean = np.mean(non_det)
                         median = np.median(non_det)
+                        medians = np.empty(1000)
+                        for i in range(1000): 
+                            medians[i] = np.median(np.random.choice(non_det, 
+                                         size = len(non_det), replace = True))
+                        median_unc = np.diff(np.percentile(medians, (16,84)))[0]/2
+                        
                         low_limit = np.percentile(non_det, 10)
                         high_limit = np.percentile(non_det, 90)
                         trim = np.where((non_det > low_limit) &
@@ -448,6 +470,7 @@ def get_baseline(fps_file, window="10D",
                         fcqfid_dict[str(ufid)]['chi_post'] = chi
                         fcqfid_dict[str(ufid)]['mean_post'] = mean
                         fcqfid_dict[str(ufid)]['median_post'] = median
+                        fcqfid_dict[str(ufid)]['median_unc_post'] = median_unc
                         fcqfid_dict[str(ufid)]['trim_mean_post'] = trim_mean
                         fcqfid_dict[str(ufid)]['scatter_post'] = scatter
                     fcqfid_dict[str(ufid)]['N_post_peak'] = len(mask[0])
@@ -544,7 +567,8 @@ def get_baseline(fps_file, window="10D",
                     if 'C_bl' not in fcqfid_dict[key].keys():
                         print('{} no C_bl'.format(ztf_name))
                         continue
-                    baseline = fcqfid_dict[key]['C_bl']
+                    baseline = fcqfid_dict[key]['median_bl']
+                    baseline_unc = fcqfid_dict[key]['median_unc_bl']
                     fcqfid_dict[key]['which_bl'] = 'pre+post SN'
                     
                     good_df = fp_df.iloc[good_fcqfid].copy()
@@ -571,7 +595,8 @@ def get_baseline(fps_file, window="10D",
                     if len(pre_em) >= 1:
                         if len(pre_bl[0]) < 5 or np.max(pre_em) >= 6:
                             if len(post_em) >= 10:
-                                baseline = fcqfid_dict[key]['C_post']
+                                baseline = fcqfid_dict[key]['median_post']
+                                baseline_unc = fcqfid_dict[key]['median_unc_post']
                                 fcqfid_dict[key]['which_bl'] = 'post SN'
                             if np.max(pre_em) >= 6:
                                 print('Warning {} pre-SN'.format(ztf_name))
@@ -583,21 +608,23 @@ def get_baseline(fps_file, window="10D",
                     if len(post_em) >= 1:
                         if len(post_em) < 5 or np.max(post_em) >= 6:
                             if len(pre_em) >= 10:
-                                baseline = fcqfid_dict[key]['C_pre']
+                                baseline = fcqfid_dict[key]['median_pre']
+                                baseline_unc = fcqfid_dict[key]['median_unc_pre']
                                 fcqfid_dict[key]['which_bl'] = 'pre SN'
                             if np.max(post_em) >= 6:
                                 print('Warning {} post-SN'.format(ztf_name))
                                 fcqfid_dict[key]['Warning'] = 'long decline'
                                 post_rise_em = True
                     if pre_rise_em + post_rise_em == 2:
-                        baseline = fcqfid_dict[key]['C_bl']
+                        baseline = fcqfid_dict[key]['median_bl']
+                        baseline_unc = fcqfid_dict[key]['median_unc_bl']
                         print('Warning {} bad baseline'.format(ztf_name))
                         fcqfid_dict[key]['Warning'] = 'bad baseline'
                         fcqfid_dict[key]['which_bl'] = 'pre+post SN'
 
                 flux_dn = fp_df.forcediffimflux.values[this_fcqfid] - baseline
                 unc_fcqfid = fp_df.forcediffimfluxunc.values[this_fcqfid]
-                flux_dn_unc = unc_fcqfid * sys_unc
+                flux_dn_unc = np.sqrt(unc_fcqfid**2 + baseline_unc**2) * sys_unc
                 zp_fcqfid = fp_df.zpdiff.values[this_fcqfid]
                 fnu_microJy[this_fcqfid] = flux_dn*10**(29 -
                                                         48.6/2.5 -
