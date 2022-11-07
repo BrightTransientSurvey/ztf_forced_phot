@@ -330,9 +330,6 @@ def get_baseline(fps_file, window="10D",
                                             )/base_flux_unc
                                           ) <= 5)
                     if len(mask[0]) > 2:
-                        ##### WARNING WARNING WARNING THIS SHOULD BE MEDIAN
-                        # Cmean still reported, using median for baseline - AW
-
                         non_det = base_flux[mask]
                         Cmean = np.average(non_det,
                                            weights=1/base_flux_unc[mask]**2)
@@ -411,7 +408,7 @@ def get_baseline(fps_file, window="10D",
                                         )
                         trim_mean = np.mean(non_det[trim])
                         if len(non_det[trim]) == 0:
-                            print(f'{ztf_name} {ufid} post empty')
+                            print(f'{ztf_name} {ufid} pre empty')
                         scatter = np.diff(np.percentile(non_det, (16,84)))[0]/2
                         
                         fcqfid_dict[str(ufid)]['C_pre'] = Cmean
