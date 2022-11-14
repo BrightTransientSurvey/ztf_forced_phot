@@ -235,8 +235,9 @@ def get_baseline(fps_file, window="10D",
         fcqfid
     """
     
+        
     if isinstance(fps_file, str):
-        if save_fig or write_lc is True:
+        if save_fig or write_lc or make_plot is True:
             ztf_name = fps_file.split('forcedphotometry_')[1].split('_')[0]
         fp_df = read_ipac_fps(fps_file)
         if save_path == 'default':
@@ -383,7 +384,6 @@ def get_baseline(fps_file, window="10D",
                                             )/base_flux_unc
                                           ) <= 5)
                     if len(mask[0]) > 2:
-                        ##### WARNING WARNING WARNING THIS SHOULD BE MEDIAN
                         non_det = base_flux[mask]
                         Cmean = np.average(non_det,
                                            weights=1/base_flux_unc[mask]**2)
@@ -720,6 +720,8 @@ def get_baseline(fps_file, window="10D",
                     ax.set_ylabel(r'flux ($\mu$Jy)', fontsize = 14)
                     ax.set_xlim(np.min(fp_df.jd.values - jdstart)-10,
                                 np.max(fp_df.jd.values - jdstart)+10)
+                    ax.set_title(f"{ztf_name}, {ufid}")
+                    
                     if talk_plot:
                         ax.tick_params(axis='both', colors='white')
                         for spine in ['top', 'bottom', 'left', 'right']:
