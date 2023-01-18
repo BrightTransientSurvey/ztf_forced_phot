@@ -1,0 +1,42 @@
+Argument "" isn't numeric in numeric lt (<) at /ztf/ops/sw/stable/ztf/src/pl/perl/forcedphotometry_trim.pl line 360.
+DBD::Pg::st execute failed: ERROR:  syntax error at or near "as"
+LINE 1: ...s s, imqa q where q3c_radial_query(ra0,dec0,cast( as double ...
+                                                             ^ at /ztf/ops/sw/stable/ztf/src/pl/perl/forcedphotometry_trim.pl line 431.
+forcedphotometry_trim.pl: *** Error executing: select s.field,ccdid,qid,filter,s.pid,s.infobitssci,s.sciinpseeing,s.scibckgnd,s.scisigpix,s.zpmaginpsci,s.zpmaginpsciunc,q.pabszprms,q.pcolterm,q.pcoltermunc,q.pnmatches,q.adpctdif1,q.adpctdif2,s.diffmaglim,s.zpdiff,s.jd,s.pdiffimfilename,s.rfid,s.scigain from subtractions s, imqa q where q3c_radial_query(ra0,dec0,cast( as double precision),cast( as double precision),cast(0.7 as double precision)) and q3c_poly_query(cast( as double precision),cast( as double precision),array[ra1,dec1,ra2,dec2,ra3,dec3,ra4,dec4]) and s.jd >= 2458194.5 and s.jd <= 2459305.5 and s.pid = q.pid ERROR:  syntax error at or near "as"
+LINE 1: ...s s, imqa q where q3c_radial_query(ra0,dec0,cast( as double ...
+                                                             ^ at /ztf/ops/sw/stable/ztf/src/pl/perl/forcedphotometry_trim.pl line 431.
+
+Executing forcedphotometry_trim.pl, version 3.5 on 2021-04-16 at 18:10:07 (last modified: 04.01.21 by F. Masci)...
+
+Inputs to forcedphotometry_trim.pl:
+TARGETDB, DBSERVER, DBPORT = ztf2, ztfdb2, 5432
+fph_reqid = 12341234
+fph_ra =  degrees
+fph_dec =  degrees
+fph_startjd =  days
+fph_endjd = 2459305.5 days
+fph_programid = 14
+allowed programids = 1, 2, 3
+ztf_sw = /ztf/ops/sw/180822
+scriptpath = /ztf/ops/sw/180822/ztf/src/pl/perl
+debug switch = 0
+simulation mode switch = 0
+magnitude of simulated source if simulation switch was set = 19 mag.
+internal stamp image size = 25 pixels
+stamp image pixel upsampling factor = 5
+aperture diameter for aperture photometry = 9 pixels
+correction factor for noise-sigma in PSF-fit flux = 1
+signal-to-noise ratio for thresholding PSF-fit and aperture SNRs for computing possible flux correction = 3
+minimum number of good aperture to psf-fit flux ratios for computing possible flux correction to psf fluxes = 10
+flag to apply filter-dependent corrections to PSF-fit fluxes to obtain consistency with aperture fluxes = 0
+flag to correct fluxes using simulated calibration source = 1
+flux correction factor for psf-fluxes using simulated source = 0.89897
+flux correction factor for aperture-fluxes using simulated source = 0.99331
+earliest epoch that can be used (fixed at start of official science survey) = 2018-03-17T00:00:00.0 UT [JD = 2458194.5]
+maximum matching radius for reporting nearest ref-image psf-catalog source = 5 arcsec
+JD range of already publicly-released data to always include from programIDs=2&3: 2458194.5 ... 2458755.5
+=== Warning: forcedphotometry_trim.pl: requested input start JD () was reset to official survey-start date (2018-03-17T00:00:00.0 UT; JD = 2458194.5); continuing...
+
+forcedphotometry_trim.pl: executing DB query using:
+select s.field,ccdid,qid,filter,s.pid,s.infobitssci,s.sciinpseeing,s.scibckgnd,s.scisigpix,s.zpmaginpsci,s.zpmaginpsciunc,q.pabszprms,q.pcolterm,q.pcoltermunc,q.pnmatches,q.adpctdif1,q.adpctdif2,s.diffmaglim,s.zpdiff,s.jd,s.pdiffimfilename,s.rfid,s.scigain from subtractions s, imqa q where q3c_radial_query(ra0,dec0,cast( as double precision),cast( as double precision),cast(0.7 as double precision)) and q3c_poly_query(cast( as double precision),cast( as double precision),array[ra1,dec1,ra2,dec2,ra3,dec3,ra4,dec4]) and s.jd >= 2458194.5 and s.jd <= 2459305.5 and s.pid = q.pid
+

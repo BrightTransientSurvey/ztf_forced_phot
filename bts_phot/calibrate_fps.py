@@ -258,6 +258,13 @@ def get_baseline(fps_file, window="10D",
                                     combined for a single SN""")
     fp_df.drop_duplicates(['pid', 'forcediffimflux', 'forcediffimfluxunc'],
                           inplace=True)
+      
+    # AW: code used for debugging\
+#     temp_df = fp_df.loc[fp_df['fcqfid'] == 16500822][['field', 'ccdid', 'qid', 'filter','infobitssci','refjdstart','refjdend','fcqfid']]
+#     print(temp_df['refjdstart'].value_counts())
+#     print(temp_df['refjdend'].value_counts())
+#     print(temp_df)
+    
     unique_fid = np.unique(fp_df.fcqfid.values).astype(int)
 
     fcqfid_dict = {}
@@ -266,10 +273,13 @@ def get_baseline(fps_file, window="10D",
     for ufid in unique_fid:
         fcqfid_dict[str(ufid)] = {}
         bad_obs = np.zeros_like(fp_df.ccdid.values)
-        bad_obs[np.where((fp_df.infobitssci.values > 0) |
-                         (fp_df.scisigpix.values > 25) |
-                         (fp_df.sciinpseeing.values > 5)
-                        )] = 1
+        if deprecated:
+            bad_obs[np.where((fp_df.infobitssci.values > 0) |
+                             (fp_df.scisigpix.values > 25) |
+                             (fp_df.sciinpseeing.values > 5)
+                            )] = 1
+        else:
+            bad_obs[np.where((fp_df.infobitssci.values > 0))] = 1
 
         this_fcqfid = np.where((fp_df.fcqfid.values == ufid) &
                                (bad_obs == 0))
@@ -366,6 +376,7 @@ def get_baseline(fps_file, window="10D",
                         fcqfid_dict[str(ufid)]['trim_mean_bl'] = trim_mean
                         fcqfid_dict[str(ufid)]['scatter_bl'] = scatter
                     fcqfid_dict[str(ufid)]['N_bl'] = len(mask[0])                
+                
                 # measure the baseline pre-peak
                 if deprecated:
                     pre_bl = np.where((t_peak - fcqf_df.jd.values > 100) &
@@ -482,6 +493,8 @@ def get_baseline(fps_file, window="10D",
     if make_plot is not False or write_lc is not False:
         fnu_microJy = -999.*np.ones_like(fp_df.forcediffimflux.values)
         fnu_microJy_unc = -999.*np.ones_like(fp_df.forcediffimflux.values)
+        # AW: add in rolling median
+        fnu_roll_med = -999.*np.ones_like(fp_df.forcediffimflux.values)
         sys_sigma = np.zeros_like(fp_df.forcediffimflux.values)
         if deprecated:
             n_base_obs = np.zeros_like(fp_df.forcediffimflux.values).astype(int)
@@ -498,7 +511,7 @@ def get_baseline(fps_file, window="10D",
             bad_flag = np.where((fp_df.infobitssci.values > 0))
             good_flag = np.where((fp_df.infobitssci.values == 0))
             bad_obs[bad_flag] = 1
-            
+
         for key in fcqfid_dict:
             if (key != 't_peak' and 'N_pre_peak' in fcqfid_dict[key].keys()):
                 ufid = int(key)
@@ -567,7 +580,7 @@ def get_baseline(fps_file, window="10D",
                 else:
                     # determine if there is emission in pre/post SN baseline
                     if 'C_bl' not in fcqfid_dict[key].keys():
-                        print('{} no C_bl'.format(ztf_name))
+                        print('{ztf_name}, {key} no C_bl'.format(ztf_name = ztf_name, key = key))
                         continue
                     baseline = fcqfid_dict[key]['median_bl']
                     baseline_unc = fcqfid_dict[key]['median_unc_bl']
@@ -587,6 +600,14 @@ def get_baseline(fps_file, window="10D",
                     post_bl = np.where(good_df.jd.values > t_faded)
                     post_em = (roll_med[post_bl] - baseline)/scale_unc[post_bl]
                     
+                    ### my code: plot the pre_em to see what's going on
+#                     jd = good_df.iloc[pre_bl].jd.values - 2458119.5
+#                     plt.scatter(jd, pre_em, label = ufid)
+#                     plt.legend()
+#                     plt.xlabel('Time (JD - 2018 Jan 01)', fontsize = 10)
+#                     plt.show()
+#                    ## end of my code
+
                     #### So many nested ifs - cover your eye's Guido
                     if len(pre_em) < 10 and len(post_em) < 10:
                         continue
@@ -595,38 +616,65 @@ def get_baseline(fps_file, window="10D",
                     if len(pre_em) == 0:
                         fcqfid_dict[key]['which_bl'] = 'post SN'
                     if len(pre_em) >= 1:
-                        if len(pre_bl[0]) < 5 or np.max(pre_em) >= 6:
+                        if len(pre_bl[0]) < 5 or np.max(pre_em) >= 7:
                             if len(post_em) >= 10:
                                 baseline = fcqfid_dict[key]['median_post']
                                 baseline_unc = fcqfid_dict[key]['median_unc_post']
                                 fcqfid_dict[key]['which_bl'] = 'post SN'
-                            if np.max(pre_em) >= 6:
-                                print('Warning {} pre-SN'.format(ztf_name))
+                            if np.max(pre_em) >= 7:
+                                print(f'Warning {ztf_name} {ufid} pre-SN')
                                 fcqfid_dict[key]['Warning'] = 'long rise'
                                 pre_rise_em = True
+                                
                     post_rise_em = False
                     if len(post_em) == 0:
                         fcqfid_dict[key]['which_bl'] = 'pre SN'
                     if len(post_em) >= 1:
-                        if len(post_em) < 5 or np.max(post_em) >= 6:
+                        if len(post_em) < 5 or np.max(post_em) >= 7:
                             if len(pre_em) >= 10:
                                 baseline = fcqfid_dict[key]['median_pre']
                                 baseline_unc = fcqfid_dict[key]['median_unc_pre']
                                 fcqfid_dict[key]['which_bl'] = 'pre SN'
-                            if np.max(post_em) >= 6:
-                                print('Warning {} post-SN'.format(ztf_name))
+                            if np.max(post_em) >= 7:
+                                print(f'Warning {ztf_name} {ufid} post-SN')
                                 fcqfid_dict[key]['Warning'] = 'long decline'
                                 post_rise_em = True
+                                
                     if pre_rise_em + post_rise_em == 2:
                         baseline = fcqfid_dict[key]['median_bl']
                         baseline_unc = fcqfid_dict[key]['median_unc_bl']
-                        print('Warning {} bad baseline'.format(ztf_name))
+                        print(f'Warning {ztf_name} {ufid} bad baseline')
                         fcqfid_dict[key]['Warning'] = 'bad baseline'
                         fcqfid_dict[key]['which_bl'] = 'pre+post SN'
 
                 flux_dn = fp_df.forcediffimflux.values[this_fcqfid] - baseline
                 unc_fcqfid = fp_df.forcediffimfluxunc.values[this_fcqfid]
-                flux_dn_unc = np.sqrt(unc_fcqfid**2 + baseline_unc**2) * sys_unc
+                # AW: add rolling median
+                flux_roll_med = fp_df.forcediffimflux.iloc[this_fcqfid].rolling(window, center=True).median().values - baseline
+                
+                # AW: code to get MJD of the steps
+                temp_df = fp_df.copy()
+                print('fcqfid', key)
+                temp_df = temp_df.loc[temp_df['fcqfid'] == int(key)]
+                temp_df.reset_index(inplace = True)
+                pre_step = np.where(((t_peak - temp_df.jd.values) > 100) &
+                                    ((temp_df['forcediffimflux'] - baseline) > 300))[0]
+                if len(pre_step) > 0:
+                    print("pre_step", pre_step)
+                    temp_df = temp_df.iloc[:pre_step[-1] + 3,:]
+                    if len(temp_df) != 0:
+                        # print(temp_df)
+                        temp_df['forcediffimflux'] = temp_df['forcediffimflux'] - baseline
+                        pd.set_option('float_format', '{:f}'.format)
+                        print(temp_df[['jd','forcediffimflux']])
+                          
+                
+                # AW: fixed bug, add deprecated version
+                if deprecated:
+                    flux_dn_unc = np.sqrt(unc_fcqfid**2) * sys_unc
+                else:
+                    flux_dn_unc = np.sqrt(unc_fcqfid**2 + baseline_unc**2) * sys_unc
+
                 zp_fcqfid = fp_df.zpdiff.values[this_fcqfid]
                 fnu_microJy[this_fcqfid] = flux_dn*10**(29 -
                                                         48.6/2.5 -
@@ -634,15 +682,19 @@ def get_baseline(fps_file, window="10D",
                 fnu_microJy_unc[this_fcqfid] = flux_dn_unc*10**(29 -
                                                                 48.6/2.5 -
                                                                 0.4*zp_fcqfid)
+                # AW: adding rolling median
+                fnu_roll_med[this_fcqfid] = flux_roll_med *10**(29 - 
+                                                                48.6/2.5 - 
+                                                                0.4 * zp_fcqfid)
+                
                 if deprecated:
                     n_base_obs[this_fcqfid] = n_baseline
                     which_base[this_fcqfid] = pre_or_post
                     C_baseline[this_fcqfid] = baseline
                 else:
                     sys_sigma[this_fcqfid] = sys_unc
+
                     
-
-
     if write_lc is not False:
 
         if isinstance(write_lc, pd.DataFrame):
@@ -679,11 +731,18 @@ def get_baseline(fps_file, window="10D",
         nplots = 0
         jdstart = 2458119.5
         for key in fcqfid_dict:
-            if key != 't_peak' and 'N_pre_peak' in fcqfid_dict[key].keys():
-                if ((fcqfid_dict[key]['N_pre_peak'] > 9) or
-                    (fcqfid_dict[key]['N_post_peak'] > 9)
-                   ):
-                    nplots += 1
+            if key != 't_peak' and 'N_pre_peak' in fcqfid_dict[key].keys(): 
+                # AW: altered to plot when there' are >2 pre/post_peak instead of 10
+                #     and avoid plotting all -99
+                this_fcqfid_good = np.where((fp_df.fcqfid.values == int(key)) & 
+                                            (bad_obs == 0))
+                plot_flux = fnu_microJy[this_fcqfid_good]
+
+                if not ((plot_flux == -999).sum() == len(plot_flux)):
+                    if ((fcqfid_dict[key]['N_pre_peak'] > 2) or
+                        (fcqfid_dict[key]['N_post_peak'] > 2)
+                       ):
+                        nplots += 1
 
         if nplots > 0:
             fig = plt.figure() if make_plot is True else make_plot
@@ -693,16 +752,23 @@ def get_baseline(fps_file, window="10D",
             for key in fcqfid_dict:
                 if ((key != 't_peak') and
                     ('N_pre_peak' in fcqfid_dict[key].keys()) and
-                    (fcqfid_dict[key]['N_pre_peak'] >= 10 or
-                     fcqfid_dict[key]['N_post_peak'] >= 10)
+                    (fcqfid_dict[key]['N_pre_peak'] > 2 or
+                     fcqfid_dict[key]['N_post_peak'] > 2)
                    ):
+                    
                     ufid = int(key)
-                    this_fcqfid_good = np.where((fp_df.fcqfid.values == ufid) &
+                    this_fcqfid_good = np.where((fp_df.fcqfid.values == ufid) & 
                                                 (bad_obs == 0))
 
-                    plot_jd = fp_df.jd.values[this_fcqfid_good] - jdstart
+                    plot_jd = fp_df.jd.values[this_fcqfid_good] # - jdstart
                     plot_flux = fnu_microJy[this_fcqfid_good]
                     plot_flux_unc = fnu_microJy_unc[this_fcqfid_good]
+                    # AW: add rolling median
+                    plot_roll_med = fnu_roll_med[this_fcqfid_good]
+                    
+                    # AW: avoid plotting the all -999s
+                    if (plot_flux == -999).sum() == len(plot_flux):
+                        continue
 
                     ax = axes[plot_num] if nplots > 1 else axes
                     ax.errorbar(plot_jd, plot_flux, plot_flux_unc,
@@ -710,18 +776,35 @@ def get_baseline(fps_file, window="10D",
                                             mec=color_dict[ufid % 10],
                                             ecolor=color_dict[ufid % 10],
                                             mfc='None')
-                    ax.axvline(x = t_peak - jdstart, color = '0.5', ls = '--')
-                    ax.axhline(y = 0, color = '0.5',
-                               ls = (0, [8, 1.5, 1, 1.5]), lw = 0.5, alpha=0.75)
-                    ax.axvspan(0, t_peak - jdstart - 100,
-                               color='Cornsilk', alpha=0.6, lw=0)
-                    ax.axvspan(t_faded - jdstart, 1e6,
-                               color='Cornsilk', alpha=0.6, lw=0)
-                    ax.set_ylabel(r'flux ($\mu$Jy)', fontsize = 14)
-                    ax.set_xlim(np.min(fp_df.jd.values - jdstart)-10,
-                                np.max(fp_df.jd.values - jdstart)+10)
-                    ax.set_title(f"{ztf_name}, {ufid}")
                     
+                    # AW: add in the rolling median in the plot
+                    ax.plot(plot_jd, plot_roll_med, color = 'lightgrey', zorder = 2)
+                    
+#                     ax.axvline(x = t_peak - jdstart, color = '0.5', ls = '--')
+#                     ax.axhline(y = 0, color = '0.5',
+#                                ls = (0, [8, 1.5, 1, 1.5]), lw = 0.5, alpha=0.75)
+#                     ax.axvspan(0, t_peak - jdstart - 100,
+#                                color='Cornsilk', alpha=0.6, lw=0)
+#                     ax.axvspan(t_faded - jdstart, 1e6,
+#                                color='Cornsilk', alpha=0.6, lw=0)
+#                     ax.set_ylabel(r'flux ($\mu$Jy)', fontsize = 14)
+#                     ax.set_xlim(np.min(fp_df.jd.values - jdstart)-10,
+#                                 np.max(fp_df.jd.values - jdstart)+10)
+#                     ax.set_title(f"{ztf_name}, {ufid}")
+                    
+                    
+                    ax.axvline(x = t_peak, color = '0.5', ls = '--')
+#                     ax.axhline(y = 0, color = '0.5',
+#                                ls = (0, [8, 1.5, 1, 1.5]), lw = 0.5, alpha=0.75)
+#                     ax.axvspan(0, t_peak - 100,
+#                                color='Cornsilk', alpha=0.6, lw=0)
+#                     ax.axvspan(t_faded , 1e6,
+#                                color='Cornsilk', alpha=0.6, lw=0)
+                    ax.set_ylabel(r'flux ($\mu$Jy)', fontsize = 14)
+#                     ax.set_xlim(np.min(fp_df.jd.values)-10,
+#                                 np.max(fp_df.jd.values)+10)
+                    ax.set_title(f"{ztf_name}, {ufid}")
+                                            
                     if talk_plot:
                         ax.tick_params(axis='both', colors='white')
                         for spine in ['top', 'bottom', 'left', 'right']:
