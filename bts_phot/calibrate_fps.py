@@ -180,6 +180,7 @@ def read_ipac_fps(fps_file):
 def get_baseline(fps_file, window="10D",
                  write_lc=False,
                  make_plot=False,
+                 roll_med_plot = False,
                  save_fig=False,
                  talk_plot=False,
                  save_path='default', 
@@ -213,6 +214,10 @@ def get_baseline(fps_file, window="10D",
         If True, a plot of the calibrated light curve is created
         If a matplotlib figure is provided, it will be used for plotting
         the calibrated lightcurve
+        
+    roll_med_plot: bool (optional, default = 'False')
+        If True, plot the rolling median of the calibrated photometry on top of 
+        the calibrated light curve.
 
     save_fig : bool (optional, default = 'False')
         If True, the resulting light curve plot is saved as a png
@@ -487,6 +492,10 @@ def get_baseline(fps_file, window="10D",
     if make_plot is not False or write_lc is not False:
         fnu_microJy = -999.*np.ones_like(fp_df.forcediffimflux.values)
         fnu_microJy_unc = -999.*np.ones_like(fp_df.forcediffimflux.values)
+
+        if roll_med_plot == True:
+            fnu_roll_med = -999.*np.ones_like(fp_df.forcediffimflux.values)
+        
         sys_sigma = np.zeros_like(fp_df.forcediffimflux.values)
         if deprecated:
             n_base_obs = np.zeros_like(fp_df.forcediffimflux.values).astype(int)
@@ -632,8 +641,8 @@ def get_baseline(fps_file, window="10D",
                         fcqfid_dict[key]['which_bl'] = 'pre+post SN'
 
                 flux_dn = fp_df.forcediffimflux.values[this_fcqfid] - baseline
-                unc_fcqfid = fp_df.forcediffimfluxunc.values[this_fcqfid]                 
-                
+                unc_fcqfid = fp_df.forcediffimfluxunc.values[this_fcqfid]
+
                 # AW: fixed bug, add deprecated version
                 if deprecated:
                     flux_dn_unc = np.sqrt(unc_fcqfid**2) * sys_unc
@@ -644,9 +653,18 @@ def get_baseline(fps_file, window="10D",
                 fnu_microJy[this_fcqfid] = flux_dn*10**(29 -
                                                         48.6/2.5 -
                                                         0.4*zp_fcqfid)
+                
                 fnu_microJy_unc[this_fcqfid] = flux_dn_unc*10**(29 -
                                                                 48.6/2.5 -
                                                                 0.4*zp_fcqfid)
+                
+                if roll_med_plot == True:
+                    roll_med_df = fp_df.forcediffimflux.copy()
+                    roll_med_df.iloc[bad_flag] = np.nan
+                    flux_roll_med = roll_med_df.iloc[this_fcqfid].rolling(window, center=True).median().values - baseline
+                    fnu_roll_med[this_fcqfid] = flux_roll_med *10**(29 - 
+                                                                    48.6/2.5 - 
+                                                                    0.4 * zp_fcqfid)
                 
                 if deprecated:
                     n_base_obs[this_fcqfid] = n_baseline
@@ -736,6 +754,11 @@ def get_baseline(fps_file, window="10D",
                                             ecolor=color_dict[ufid % 10],
                                             mfc='None')
                     
+                    # AW: add in the rolling median in the plot
+                    if roll_med_plot == True: 
+                        plot_roll_med = fnu_roll_med[this_fcqfid_good]
+                        ax.plot(plot_jd, plot_roll_med, color = 'lightgrey', zorder = 2)
+                    
                     ax.axvline(x = t_peak - jdstart, color = '0.5', ls = '--')
                     ax.axhline(y = 0, color = '0.5',
                                ls = (0, [8, 1.5, 1, 1.5]), lw = 0.5, alpha=0.75)
@@ -755,9 +778,9 @@ def get_baseline(fps_file, window="10D",
                         ax.yaxis.label.set_color('white')
                         ax.xaxis.label.set_color('white')
                     plot_num += 1
-
+            
             ax.set_xlabel('Time (JD - 2018 Jan 01)', fontsize = 14)
-
+            
             fig.tight_layout()
             if save_fig:
                 pname = save_path + ztf_name + '_fnu.png'
@@ -767,5 +790,6 @@ def get_baseline(fps_file, window="10D",
                     plt.close('all')
                     del(fig)
                     gc.collect()
+          
 
     return fcqfid_dict
