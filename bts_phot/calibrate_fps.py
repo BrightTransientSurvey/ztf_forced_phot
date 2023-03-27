@@ -243,10 +243,10 @@ def get_baseline(fps_file, window="10D",
         
     if isinstance(fps_file, str):
         if save_fig or write_lc or make_plot is True:
-            ztf_name = fps_file.split('forcedphotometry_')[1].split('_')[0]
+            ztf_name = 'ZTF' + fps_file.split('ZTF')[-1][0:9]
         fp_df = read_ipac_fps(fps_file)
         if save_path == 'default':
-            save_path = fps_file.split('forced')[0]
+            save_path = fps_file[0:-len(fps_file.split('/')[-1])]
     elif isinstance(fps_file, list):
         ztf_names = [n.split('forcedphotometry_')[1].split('_')[0] for
                      n in fps_file]
