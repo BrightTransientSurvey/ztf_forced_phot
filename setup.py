@@ -18,6 +18,6 @@ setup(
 	packages = ['bts_phot'],
 	include_package_data = True,
 	package_data = {'': ['cal_data/zp_thresholds_quadID.txt']},
-	install_requires = ['pandas>=1.3.0'],
+	install_requires = ['pandas>=1.3.0', 'supersmoother'],
 	python_requires = '>=3.6'
 )
