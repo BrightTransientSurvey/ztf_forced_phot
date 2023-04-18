@@ -278,7 +278,10 @@ def get_baseline(fps_file, window="10D",
                              (fp_df.sciinpseeing.values > 5)
                             )] = 1
         else:
-            bad_obs[np.where((fp_df.infobitssci.values > 0))] = 1
+            # AW: added additional filter
+            bad_obs[np.where((fp_df.infobitssci.values > 0) |
+                             (fp_df.forcediffimfluxunc == -99999)
+                            )] = 1
 
         this_fcqfid = np.where((fp_df.fcqfid.values == ufid) &
                                (bad_obs == 0))
@@ -288,6 +291,7 @@ def get_baseline(fps_file, window="10D",
         else:
             fcqf_df = fp_df.iloc[this_fcqfid].copy()
             flux_series = fcqf_df.forcediffimflux
+            
             roll_med = flux_series.rolling(window,
                                            center=True).median().values
             t_max = fcqf_df.jd.values[np.argmax(roll_med)]
@@ -309,6 +313,7 @@ def get_baseline(fps_file, window="10D",
         t_peak = np.mean(t_peak_list)
         if len(t_peak_list) > 1 and np.std(t_peak_list, ddof=1) > 10:
             print('Warning! Large scatter in time of maximum')
+            fcqfid_dict['peak_warning'] = 'large scatter in t_peak' 
         fcqfid_dict['t_peak'] = t_peak
         around_max = np.where((fp_df.jd.values - t_peak > - 10) &
                               (fp_df.jd.values - t_peak < 10) & 
@@ -331,7 +336,8 @@ def get_baseline(fps_file, window="10D",
                 # measure the baseline
                 bl = np.where(((t_peak - fcqf_df.jd.values > 100) |
                               (fcqf_df.jd.values > t_faded)) &
-                              (fcqf_df.infobitssci.values == 0)
+                              (fcqf_df.infobitssci.values == 0) &
+                              (fcqf_df.forcediffimfluxunc > -99999)
                              )
                 if len(bl[0]) > 1:
                     base_flux = fcqf_df.forcediffimflux.values[bl]
@@ -385,7 +391,8 @@ def get_baseline(fps_file, window="10D",
                                            )
                 else:
                     pre_bl = np.where((t_peak - fcqf_df.jd.values > 100) &
-                                      (fcqf_df.infobitssci.values == 0)
+                                      (fcqf_df.infobitssci.values == 0) &
+                                      (fcqf_df.forcediffimfluxunc > -99999)
                                       )
                 if len(pre_bl[0]) > 1:
                     base_flux = fcqf_df.forcediffimflux.values[pre_bl]
@@ -441,7 +448,8 @@ def get_baseline(fps_file, window="10D",
                                       )
                 else:
                     post_bl = np.where((fcqf_df.jd.values > t_faded) &
-                                       (fcqf_df.infobitssci.values == 0) 
+                                       (fcqf_df.infobitssci.values == 0) &
+                                       (fcqf_df.forcediffimfluxunc > -99999)
                                       )
                     
                 if len(post_bl[0]) > 1:
@@ -509,12 +517,14 @@ def get_baseline(fps_file, window="10D",
                              (fp_df.sciinpseeing.values > 5)
                             )] = 1
         else:
-            bad_flag = np.where((fp_df.infobitssci.values > 0))
+            # AW: add additional filter for bad obs
+            bad_flag = np.where((fp_df.infobitssci.values > 0) |
+                                (fp_df.forcediffimfluxunc == -99999))
             good_flag = np.where((fp_df.infobitssci.values == 0))
             bad_obs[bad_flag] = 1
 
         for key in fcqfid_dict:
-            if (key != 't_peak' and 'N_pre_peak' in fcqfid_dict[key].keys()):
+            if (key != 't_peak' and key != 'peak_warning' and 'N_pre_peak' in fcqfid_dict[key].keys()):
                 ufid = int(key)
                 this_fcqfid = np.where(fp_df.fcqfid.values == ufid)
                 if deprecated:
@@ -710,7 +720,7 @@ def get_baseline(fps_file, window="10D",
         nplots = 0
         jdstart = 2458119.5
         for key in fcqfid_dict:
-            if key != 't_peak' and 'N_pre_peak' in fcqfid_dict[key].keys(): 
+            if key != 't_peak' and key != 'peak_warning' and 'N_pre_peak' in fcqfid_dict[key].keys(): 
                 # AW: altered to plot when there' are >2 pre/post_peak instead of 10
                 #     and avoid plotting all -999
                 this_fcqfid_good = np.where((fp_df.fcqfid.values == int(key)) & 
@@ -729,10 +739,11 @@ def get_baseline(fps_file, window="10D",
             axes = fig.subplots(nplots, 1, sharex=True)
             plot_num = 0
             for key in fcqfid_dict:
-                if ((key != 't_peak') and
-                    ('N_pre_peak' in fcqfid_dict[key].keys()) and
-                    (fcqfid_dict[key]['N_pre_peak'] > 2 or
-                     fcqfid_dict[key]['N_post_peak'] > 2)
+                if ((key != 't_peak') #and
+                    #(key != 'peak_warning') #and 
+                    # ('N_pre_peak' in fcqfid_dict[key].keys()) and
+                    # (fcqfid_dict[key]['N_pre_peak'] > 2 or
+                    # fcqfid_dict[key]['N_post_peak'] > 2)
                    ):
                     
                     ufid = int(key)
