@@ -239,7 +239,19 @@ def get_baseline(fps_file, window="10D",
         Dictionary with summary statistics for the baseline region for each
         fcqfid
     """
-    
+
+# # Summary of flags >> to be removed later once flags are locked
+# flag | bit value | meaning
+# 1 | 1 | large scatter in max
+# 2 | 2 | possible emission in pre-SN baseline
+# 3 | 4 | possible emission in post-SN baseline
+# 4 | 8 | outliers in the baseline region
+# 5 | 16 | large scatter in baseline region
+# 6 | 32 | N_baseline < 10
+# 7 | 64 | scisigpix > 25
+# 8 | 128 | sciinpseeing > 5
+# 9 | 256 | infobits > 0
+# 10 | 512 | no flux detected in forced phot
         
     if isinstance(fps_file, str):
         if save_fig or write_lc or make_plot is True:
@@ -269,22 +281,29 @@ def get_baseline(fps_file, window="10D",
     fcqfid_dict = {}
     t_peak_list = []
 
+    fp_df['flags'] = np.zeros(len(fp_df)).astype(int)
+    fp_df.loc[fp_df.scisigpix.values > 25, 'flags'] += 64
+    fp_df.loc[fp_df.sciinpseeing.values > 5, 'flags'] += 128
+    fp_df.loc[fp_df.infobitssci.values > 0, 'flags'] += 256
+    fp_df.loc[fp_df.forcediffimfluxunc == -99999, 'flags'] += 512
+    bad_obs = np.where(fp_df['flags'].values >= 128, 1, 0)
+
     for ufid in unique_fid:
         fcqfid_dict[str(ufid)] = {}
-        bad_obs = np.zeros_like(fp_df.ccdid.values)
-        if deprecated:
-            bad_obs[np.where((fp_df.infobitssci.values > 0) |
-                             (fp_df.scisigpix.values > 25) |
-                             (fp_df.sciinpseeing.values > 5)
-                            )] = 1
-        else:
-            # AW: added additional filter
-            bad_obs[np.where((fp_df.infobitssci.values > 0) |
-                             (fp_df.forcediffimfluxunc == -99999)
-                            )] = 1
+        # bad_obs = np.zeros_like(fp_df.ccdid.values)
+        # if deprecated:
+        #     bad_obs[np.where((fp_df.infobitssci.values > 0) |
+        #                      (fp_df.scisigpix.values > 25) |
+        #                      (fp_df.sciinpseeing.values > 5)
+        #                     )] = 1
+        # else:
+        #     # AW: added additional filter
+        #     bad_obs[np.where((fp_df.infobitssci.values > 0) |
+        #                      (fp_df.forcediffimfluxunc == -99999)
+        #                     )] = 1
 
         this_fcqfid = np.where((fp_df.fcqfid.values == ufid) &
-                               (bad_obs == 0))
+                               (fp_df['flags'].values < 128))
 
         if ((ufid % 10 == 3) or (len(this_fcqfid[0]) < 2)):
             continue
@@ -295,8 +314,6 @@ def get_baseline(fps_file, window="10D",
             roll_med = flux_series.rolling(window,
                                            center=True).median().values
             t_max = fcqf_df.jd.values[np.argmax(roll_med)]
-            # f_max_snr: never used
-            f_max_snr = fcqf_df.forcediffimsnr.values[np.argmax(roll_med)]
             flux_max = np.max(roll_med)
             flux_scatt = median_abs_deviation(fcqf_df.forcediffimflux.values,
                                               scale='normal')
@@ -313,7 +330,8 @@ def get_baseline(fps_file, window="10D",
         t_peak = np.mean(t_peak_list)
         if len(t_peak_list) > 1 and np.std(t_peak_list, ddof=1) > 10:
             print('Warning! Large scatter in time of maximum')
-            fcqfid_dict['peak_warning'] = 'large scatter in t_peak' 
+            fcqfid_dict['peak_warning'] = 'large scatter in t_peak'
+            fp_df['flags'] += 1 
         fcqfid_dict['t_peak'] = t_peak
         around_max = np.where((fp_df.jd.values - t_peak > - 10) &
                               (fp_df.jd.values - t_peak < 10) & 
@@ -327,7 +345,7 @@ def get_baseline(fps_file, window="10D",
         else:
             t_faded = t_peak + 611 # catch strange cases where t_gmax != t_rmax
         for ufid in unique_fid:
-            if ufid % 10 == 4:
+            if ufid % 10 == 4: # check if this ever happens - should not be a filter id = 4
                 continue
             else:
                 this_fcqfid = np.where(fp_df.fcqfid.values == ufid)
@@ -336,15 +354,20 @@ def get_baseline(fps_file, window="10D",
                 # measure the baseline
                 bl = np.where(((t_peak - fcqf_df.jd.values > 100) |
                               (fcqf_df.jd.values > t_faded)) &
-                              (fcqf_df.infobitssci.values == 0) &
-                              (fcqf_df.forcediffimfluxunc > -99999)
+                              (fcqf_df['flags'].values < 128)
                              )
                 if len(bl[0]) > 1:
                     base_flux = fcqf_df.forcediffimflux.values[bl]
                     base_flux_unc = fcqf_df.forcediffimfluxunc.values[bl]
                     mask = np.where(np.abs( (base_flux - np.median(base_flux)
-                                            )/base_flux_unc
-                                          ) <= 5)
+                                            )/base_flux_unc) <= 5)
+                    outl = np.where(np.abs( (base_flux - np.median(base_flux)
+                                            )/base_flux_unc) > 5)
+                    # little kludgy but avoids warning
+                    outl_bool = np.zeros(len(fp_df)).astype(bool)          
+                    outl_bool[this_fcqfid[0][bl[0]][outl]] = True
+                    if sum(outl[0]) > 0:           
+                        fp_df.loc[outl_bool, 'flags'] += 8
                     if len(mask[0]) > 2:
                         non_det = base_flux[mask]
                         Cmean = np.average(non_det,
@@ -369,6 +392,7 @@ def get_baseline(fps_file, window="10D",
                                         (non_det < high_limit)
                                         )
                         trim_mean = np.mean(non_det[trim])
+                        # is this warning needed?
                         if len(non_det[trim]) == 0:
                             print(f'{ztf_name} {ufid} bl empty')
                         scatter = np.diff(np.percentile(non_det, (16,84)))[0]/2
@@ -380,7 +404,9 @@ def get_baseline(fps_file, window="10D",
                         fcqfid_dict[str(ufid)]['median_unc_bl'] = median_unc
                         fcqfid_dict[str(ufid)]['trim_mean_bl'] = trim_mean
                         fcqfid_dict[str(ufid)]['scatter_bl'] = scatter
-                    fcqfid_dict[str(ufid)]['N_bl'] = len(mask[0])                
+                    fcqfid_dict[str(ufid)]['N_bl'] = len(mask[0])
+                    if fcqfid_dict[str(ufid)]['N_bl'] < 10:
+                        fp_df.loc[fp_df.fcqfid == ufid, 'flags'] += 32                
                 
                 # measure the baseline pre-peak
                 if deprecated:
@@ -391,8 +417,7 @@ def get_baseline(fps_file, window="10D",
                                            )
                 else:
                     pre_bl = np.where((t_peak - fcqf_df.jd.values > 100) &
-                                      (fcqf_df.infobitssci.values == 0) &
-                                      (fcqf_df.forcediffimfluxunc > -99999)
+                                      (fcqf_df['flags'].values < 128)
                                       )
                 if len(pre_bl[0]) > 1:
                     base_flux = fcqf_df.forcediffimflux.values[pre_bl]
@@ -448,8 +473,7 @@ def get_baseline(fps_file, window="10D",
                                       )
                 else:
                     post_bl = np.where((fcqf_df.jd.values > t_faded) &
-                                       (fcqf_df.infobitssci.values == 0) &
-                                       (fcqf_df.forcediffimfluxunc > -99999)
+                                       (fcqf_df['flags'].values < 128)
                                       )
                     
                 if len(post_bl[0]) > 1:
@@ -475,7 +499,6 @@ def get_baseline(fps_file, window="10D",
                             medians[i] = np.median(np.random.choice(non_det, 
                                          size = len(non_det), replace = True))
                         median_unc = np.diff(np.percentile(medians, (16,84)))[0]/2
-                        
                         low_limit = np.percentile(non_det, 10)
                         high_limit = np.percentile(non_det, 90)
                         trim = np.where((non_det > low_limit) &
@@ -510,6 +533,7 @@ def get_baseline(fps_file, window="10D",
             which_base = np.zeros_like(fp_df.forcediffimflux.values).astype(int)
             C_baseline = np.zeros_like(fp_df.forcediffimflux.values)
 
+        # this is the same as bad_obs at beginning isn't it?
         bad_obs = np.zeros_like(fp_df.ccdid.values)
         if deprecated:
             bad_obs[np.where((fp_df.infobitssci.values > 0) |
@@ -530,14 +554,15 @@ def get_baseline(fps_file, window="10D",
                 if deprecated:
                     sys_unc = max(fcqfid_dict[key]['chi_pre']**0.5, 1)
                 else:
-                    good_fcqfid = np.intersect1d(this_fcqfid, good_flag)
+                    good_fcqfid = np.where((fp_df.fcqfid.values == ufid) & 
+                                           (fp_df['flags'].values < 128) )
                     chi_ser = fp_df.forcediffimchisq.iloc[good_fcqfid].copy()
                     good_diffl = fp_df.forcediffimflux.iloc[good_fcqfid].values
                     this_diffl = fp_df.forcediffimflux.iloc[this_fcqfid].values
                     med_chi = np.median(chi_ser.values)
                     if np.mean(chi_ser.values) < 1.5:
                         sys_unc = med_chi**0.5 * np.ones_like(this_diffl)
-                    elif len(good_fcqfid) > 0: 
+                    elif len(good_fcqfid[0]) > 0: 
                         try:
                             model = SuperSmoother()
                             model.fit(fp_df.forcediffimflux.iloc[good_fcqfid], 
@@ -551,6 +576,7 @@ def get_baseline(fps_file, window="10D",
                             chi_interp = np.where(chi_interp < 1, 1, 
                                                   chi_interp)
                             sys_unc = chi_interp**0.5
+                            # is this warning necessary?
                             if np.isnan(sys_unc).any():
                                 print(f'{ztf_name} {ufid} bad interp')
                         except:                            
@@ -595,14 +621,15 @@ def get_baseline(fps_file, window="10D",
                         continue
                     baseline = fcqfid_dict[key]['median_bl']
                     baseline_unc = fcqfid_dict[key]['median_unc_bl']
+                    base_scat = fcqfid_dict[key]['scatter_bl']
                     fcqfid_dict[key]['which_bl'] = 'pre+post SN'
                     
                     good_df = fp_df.iloc[good_fcqfid].copy()
                     flux_series = good_df.forcediffimflux
                     roll_med = flux_series.rolling("14D",
                                                    center=True).median().values
-                    this_ib = fp_df.iloc[this_fcqfid].infobitssci
-                    scale = sys_unc[np.where(this_ib == 0)]
+                    this_fl = fp_df['flags'].iloc[this_fcqfid].values
+                    scale = sys_unc[np.where(this_fl < 128)]
                     scale_unc = scale * good_df.forcediffimfluxunc.values
 
                     pre_bl = np.where(t_peak - good_df.jd.values > 100)
@@ -619,37 +646,46 @@ def get_baseline(fps_file, window="10D",
                     if len(pre_em) == 0:
                         fcqfid_dict[key]['which_bl'] = 'post SN'
                     if len(pre_em) >= 1:
-                        if len(pre_bl[0]) < 5 or np.max(pre_em) >= 7:
-                            if len(post_em) >= 10:
+                        if len(pre_bl[0]) < 5 or sum(pre_em >= 7) >= 2:
+                            if ((len(post_em) >= 10) and 
+                                (fcqfid_dict[key]['N_post_peak'] > 2)):
                                 baseline = fcqfid_dict[key]['median_post']
                                 baseline_unc = fcqfid_dict[key]['median_unc_post']
+                                base_scat = fcqfid_dict[key]['scatter_pre']
                                 fcqfid_dict[key]['which_bl'] = 'post SN'
-                            if np.max(pre_em) >= 7:
+                            if sum(pre_em >= 7) >= 2:
                                 print(f'Warning {ztf_name} {ufid} pre-SN')
-                                fcqfid_dict[key]['Warning'] = 'long rise'
+                                fcqfid_dict[key]['Warning'] = 'pre-SN emission'
                                 pre_rise_em = True
+                                fp_df.loc[fp_df.fcqfid == ufid, 'flags'] += 2
                                 
                     post_rise_em = False
                     if len(post_em) == 0:
                         fcqfid_dict[key]['which_bl'] = 'pre SN'
                     if len(post_em) >= 1:
-                        if len(post_em) < 5 or np.max(post_em) >= 7:
-                            if len(pre_em) >= 10:
+                        if len(post_em) < 5 or sum(post_em >= 7) >= 2:
+                            if ((len(pre_em) >= 10) and
+                                (fcqfid_dict[key]['N_pre_peak'] > 2)):
                                 baseline = fcqfid_dict[key]['median_pre']
                                 baseline_unc = fcqfid_dict[key]['median_unc_pre']
+                                base_scat = fcqfid_dict[key]['scatter_post']
                                 fcqfid_dict[key]['which_bl'] = 'pre SN'
-                            if np.max(post_em) >= 7:
+                            if sum(post_em >= 7) >= 2:
                                 print(f'Warning {ztf_name} {ufid} post-SN')
-                                fcqfid_dict[key]['Warning'] = 'long decline'
+                                fcqfid_dict[key]['Warning'] = 'post-SN emission'
                                 post_rise_em = True
+                                fp_df.loc[fp_df.fcqfid == ufid, 'flags'] += 4
                                 
                     if pre_rise_em + post_rise_em == 2:
                         baseline = fcqfid_dict[key]['median_bl']
                         baseline_unc = fcqfid_dict[key]['median_unc_bl']
+                        base_scat = fcqfid_dict[key]['scatter_bl']
                         print(f'Warning {ztf_name} {ufid} bad baseline')
                         fcqfid_dict[key]['Warning'] = 'bad baseline'
                         fcqfid_dict[key]['which_bl'] = 'pre+post SN'
-
+                        # fp_df.loc[fp_df.fcqfid == ufid, 'flags'] += 512
+                if base_scat > 100:
+                    fp_df.loc[fp_df.fcqfid == ufid, 'flags'] += 16
                 flux_dn = fp_df.forcediffimflux.values[this_fcqfid] - baseline
                 unc_fcqfid = fp_df.forcediffimfluxunc.values[this_fcqfid]
 
@@ -699,6 +735,7 @@ def get_baseline(fps_file, window="10D",
         write_df['zpdiff'] = fp_df.zpdiff.values
         write_df['sys_unc_factor'] = sys_sigma
         write_df['poor_conditions'] = bad_obs
+        write_df['flags'] = fp_df['flags'].values
         if deprecated:
             write_df['C'] = C_baseline
             write_df['N_baseline'] = n_base_obs
@@ -739,11 +776,11 @@ def get_baseline(fps_file, window="10D",
             axes = fig.subplots(nplots, 1, sharex=True)
             plot_num = 0
             for key in fcqfid_dict:
-                if ((key != 't_peak') #and
-                    #(key != 'peak_warning') #and 
-                    # ('N_pre_peak' in fcqfid_dict[key].keys()) and
-                    # (fcqfid_dict[key]['N_pre_peak'] > 2 or
-                    # fcqfid_dict[key]['N_post_peak'] > 2)
+                if ((key != 't_peak') and
+                    (key != 'peak_warning') and 
+                    ('N_pre_peak' in fcqfid_dict[key].keys()) and
+                    (fcqfid_dict[key]['N_pre_peak'] > 2 or
+                    fcqfid_dict[key]['N_post_peak'] > 2)
                    ):
                     
                     ufid = int(key)
