@@ -651,7 +651,7 @@ def get_baseline(fps_file, window="10D",
                                 (fcqfid_dict[key]['N_post_peak'] > 2)):
                                 baseline = fcqfid_dict[key]['median_post']
                                 baseline_unc = fcqfid_dict[key]['median_unc_post']
-                                base_scat = fcqfid_dict[key]['scatter_pre']
+                                base_scat = fcqfid_dict[key]['scatter_post']
                                 fcqfid_dict[key]['which_bl'] = 'post SN'
                             if sum(pre_em >= 7) >= 2:
                                 print(f'Warning {ztf_name} {ufid} pre-SN')
@@ -668,7 +668,7 @@ def get_baseline(fps_file, window="10D",
                                 (fcqfid_dict[key]['N_pre_peak'] > 2)):
                                 baseline = fcqfid_dict[key]['median_pre']
                                 baseline_unc = fcqfid_dict[key]['median_unc_pre']
-                                base_scat = fcqfid_dict[key]['scatter_post']
+                                base_scat = fcqfid_dict[key]['scatter_pre']
                                 fcqfid_dict[key]['which_bl'] = 'pre SN'
                             if sum(post_em >= 7) >= 2:
                                 print(f'Warning {ztf_name} {ufid} post-SN')
