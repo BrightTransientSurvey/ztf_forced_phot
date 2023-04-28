@@ -252,7 +252,9 @@ def get_baseline(fps_file, window="10D",
 # 8 | 128 | sciinpseeing > 5
 # 9 | 256 | infobits > 0
 # 10 | 512 | no flux detected in forced phot
-        
+    
+    bad_obs_fl = 256
+    
     if isinstance(fps_file, str):
         if save_fig or write_lc or make_plot is True:
             ztf_name = 'ZTF' + fps_file.split('ZTF')[-1][0:9]
@@ -286,7 +288,7 @@ def get_baseline(fps_file, window="10D",
     fp_df.loc[fp_df.sciinpseeing.values > 5, 'flags'] += 128
     fp_df.loc[fp_df.infobitssci.values > 0, 'flags'] += 256
     fp_df.loc[fp_df.forcediffimfluxunc == -99999, 'flags'] += 512
-    bad_obs = np.where(fp_df['flags'].values >= 128, 1, 0)
+    bad_obs = np.where(fp_df['flags'].values >= bad_obs_fl, 1, 0)
 
     for ufid in unique_fid:
         fcqfid_dict[str(ufid)] = {}
@@ -303,7 +305,7 @@ def get_baseline(fps_file, window="10D",
         #                     )] = 1
 
         this_fcqfid = np.where((fp_df.fcqfid.values == ufid) &
-                               (fp_df['flags'].values < 128))
+                               (fp_df['flags'].values < bad_obs_fl))
 
         if ((ufid % 10 == 3) or (len(this_fcqfid[0]) < 2)):
             continue
@@ -354,7 +356,7 @@ def get_baseline(fps_file, window="10D",
                 # measure the baseline
                 bl = np.where(((t_peak - fcqf_df.jd.values > 100) |
                               (fcqf_df.jd.values > t_faded)) &
-                              (fcqf_df['flags'].values < 128)
+                              (fcqf_df['flags'].values < bad_obs_fl)
                              )
                 if len(bl[0]) > 1:
                     base_flux = fcqf_df.forcediffimflux.values[bl]
@@ -417,7 +419,7 @@ def get_baseline(fps_file, window="10D",
                                            )
                 else:
                     pre_bl = np.where((t_peak - fcqf_df.jd.values > 100) &
-                                      (fcqf_df['flags'].values < 128)
+                                      (fcqf_df['flags'].values < bad_obs_fl)
                                       )
                 if len(pre_bl[0]) > 1:
                     base_flux = fcqf_df.forcediffimflux.values[pre_bl]
@@ -473,7 +475,7 @@ def get_baseline(fps_file, window="10D",
                                       )
                 else:
                     post_bl = np.where((fcqf_df.jd.values > t_faded) &
-                                       (fcqf_df['flags'].values < 128)
+                                       (fcqf_df['flags'].values < bad_obs_fl)
                                       )
                     
                 if len(post_bl[0]) > 1:
@@ -555,7 +557,7 @@ def get_baseline(fps_file, window="10D",
                     sys_unc = max(fcqfid_dict[key]['chi_pre']**0.5, 1)
                 else:
                     good_fcqfid = np.where((fp_df.fcqfid.values == ufid) & 
-                                           (fp_df['flags'].values < 128) )
+                                           (fp_df['flags'].values < bad_obs_fl))
                     chi_ser = fp_df.forcediffimchisq.iloc[good_fcqfid].copy()
                     good_diffl = fp_df.forcediffimflux.iloc[good_fcqfid].values
                     this_diffl = fp_df.forcediffimflux.iloc[this_fcqfid].values
@@ -629,7 +631,7 @@ def get_baseline(fps_file, window="10D",
                     roll_med = flux_series.rolling("14D",
                                                    center=True).median().values
                     this_fl = fp_df['flags'].iloc[this_fcqfid].values
-                    scale = sys_unc[np.where(this_fl < 128)]
+                    scale = sys_unc[np.where(this_fl < bad_obs_fl)]
                     scale_unc = scale * good_df.forcediffimfluxunc.values
 
                     pre_bl = np.where(t_peak - good_df.jd.values > 100)
