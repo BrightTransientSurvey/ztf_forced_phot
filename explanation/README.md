@@ -10,17 +10,9 @@ While the fps provides both a zero-point and flux measurement, potential systema
 
 IPAC fps output requires a "baseline correction" ([see the docs](http://web.ipac.caltech.edu/staff/fmasci/ztf/forcedphot.pdf)). This baseline is best determined using a large (>~ 25) statistical sample of subtraction images that do not include emission from the transient of interest. Most transients have a suitable set of "pre-transient" images, but a significant fraction (e.g., many ZTF discoveries from 2018) require images taken long after the transient has faded. A suitable baseline can be identified visually, though with thousands of BTS transients we automate this procedure.
 
-### Flagging unreliable observations
+### Identifying unreliable observations
 
-We attempt to flag observations that are not reliable, in case users wish to remove these from their analysis. For the most part, such images were taken in extremely poor observing conditions and it was not possible to properly calibrate the PSF model. In particular, we flag images that match the following criteria as `poor_conditions` within the data products: 
-
-1. `infobits` > 0
-2. `scisigpix` > 25
-3. `sciinpseeing` > 5
-
-(see [Yao et al. (2019)](http://dx.doi.org/10.3847/1538-4357/ab4cf5) for further details). A non-zero value for `infobits` typically indicates a problem with the IPAC data processing pipeline. `infobits` > 33554432 corresponds to "cloudy" data (see Section 2.4 of the [ZTF Science Data System (ZSDS) Advisories & Cautionary Notes](http://web.ipac.caltech.edu/staff/fmasci/ztf/extended_cautionary_notes.pdf)). 
-
-Note that observations that have been flagged as unreliable are excluded from any baseline calculations.
+We attempt to identify [observations that may not be reliable](#Flags-Bitmask), providing users with the ability to remove these data from their analysis. Within this larger framework of warnings, we exclude all observations with `flags > 256` from our analysis. This corresponds to science images that do not pass the IPAC quality assurance thresholds and difference images for which the FPS does not provide any output. Any such observations are excluded from any baseline calculations.
 
 <img src="./../images/flagged_obs.jpg" raw=True>
 
@@ -50,6 +42,31 @@ subtracted from all flux measurements `forcediffimflux`. The uncertainties are
 scaled (see above), and the flux in microJy is calculated as:
 
 <img src="https://render.githubusercontent.com/render/math?math=\Large f_\nu = 10^{29 - 48.6/2.5 - 0.4*\mathrm{zpdiff}}*(\mathrm{forcediffimflux} - C)">
+
+### <a name="Flags-Bitmask"></a> Flags Bitmask
+
+While processing the output from the IPAC FPS, we flag observations that may not be reliable or that have a suspect calibration due to difficulties in estimating the baseline correction listed above. The output flags are: 
+
+
+Flag Name | Flag value in decimal form | Description of the flag
+:---|---:|:---
+Default | 0 | Initial value for all observations
+TMaxScatter | 1 | The estimated time of maximum varies significantly (> 7 d) for observations in the different filters
+PreSNEmission | 2 | Significant flux is detected in the baseline region prior to the SN peak
+PostSNEmission | 4 | Significant flux is detected in the baseline region prior to the SN peak
+BaselineOutlier | 8 | Observation is not consistent with the estimated baseline at the 5-sigma level
+BaselineScatter | 16 | Unusually large scatter in the flux measurements in the baseline region
+BaselineSmall | 32 | There are fewer than 10 observations used to define the baseline region
+NoisyImage | 64 | Robust sigma per pixel in sci image (`scisigpix`) exceeds 25
+BadSeeing | 128 | Seeing in the science image is > 5 arcsec
+FailedImage | 256 | Processing summary and quality assurance for the science image has been flagged (infobits > 0)
+FailedMeasurement | 512 | FPS processing fails and no flux measurement is made
+
+The `PreSNEmission` and `PostSNEmission` flags were designed to identify sources with exceptionally long rise and decline times, respectively. These flags can also identify sources that flare before or after the primary peak of the transient. 
+
+[Yao et al. (2019)](http://dx.doi.org/10.3847/1538-4357/ab4cf5) caution against using observations with a large `scisigpix` or large `seeing`, which is why we include the `NoisyImage` and `BadSeeing` flags. 
+
+A non-zero value for `infobits` typically indicates a problem with the IPAC data processing pipeline, hence the `FailedImage` flag. `infobits` > 33554432 corresponds to "bad-data" quality flag (see Section 2.4 of the [ZTF Science Data System (ZSDS) Advisories & Cautionary Notes](http://web.ipac.caltech.edu/staff/fmasci/ztf/extended_cautionary_notes.pdf)). 
 
 ## Final product
 
