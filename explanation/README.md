@@ -12,7 +12,7 @@ IPAC fps output requires a "baseline correction" ([see the docs](http://web.ipac
 
 ### Identifying unreliable observations
 
-We attempt to identify [observations that may not be reliable](#Flags-Bitmask), providing users with the ability to remove these data from their analysis. Within this larger framework of warnings, we exclude all observations with `flags > 256` from our analysis. This corresponds to science images that do not pass the IPAC quality assurance thresholds and difference images for which the FPS does not provide any output. Any such observations are excluded from any baseline calculations.
+We attempt to identify [observations that may not be reliable](../explanation#-flags-bitmask), providing users with the ability to remove these data from their analysis. Within this larger framework of warnings, we exclude all observations with `flags > 256` from our analysis. This corresponds to science images that do not pass the IPAC quality assurance thresholds and difference images for which the FPS does not provide any output. Any such observations are excluded from any baseline calculations.
 
 <img src="./../images/flagged_obs.jpg" raw=True>
 
