@@ -292,6 +292,7 @@ def get_baseline(fps_file, window="10D",
 
     for ufid in unique_fid:
         fcqfid_dict[str(ufid)] = {}
+        fcqfid_dict[str(ufid)]['N_bl'] = 0
         # bad_obs = np.zeros_like(fp_df.ccdid.values)
         # if deprecated:
         #     bad_obs[np.where((fp_df.infobitssci.values > 0) |
@@ -414,8 +415,6 @@ def get_baseline(fps_file, window="10D",
                     fcqfid_dict[str(ufid)]['N_bl'] = len(mask[0])
                     if fcqfid_dict[str(ufid)]['N_bl'] < 10:
                         fp_df.loc[fp_df.fcqfid == ufid, 'flags'] += 32
-                elif len(bl[0]) == 0:
-                    fcqfid_dict[str(ufid)]['N_bl'] = 0
                 
                 # measure the baseline pre-peak
                 if deprecated:
