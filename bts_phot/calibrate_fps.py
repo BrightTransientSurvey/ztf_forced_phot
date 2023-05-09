@@ -364,6 +364,7 @@ def get_baseline(fps_file, window="10D",
                               (fcqf_df.jd.values > t_faded)) &
                               (fcqf_df['flags'].values < bad_obs_fl)
                              )
+                
                 if len(bl[0]) > 1:
                     base_flux = fcqf_df.forcediffimflux.values[bl]
                     base_flux_unc = fcqf_df.forcediffimfluxunc.values[bl]
@@ -415,6 +416,8 @@ def get_baseline(fps_file, window="10D",
                     fcqfid_dict[str(ufid)]['N_bl'] = len(mask[0])
                     if fcqfid_dict[str(ufid)]['N_bl'] < 10:
                         fp_df.loc[fp_df.fcqfid == ufid, 'flags'] += 32
+                else:
+                    fcqfid_dict[str(ufid)]['N_bl'] = 0
                 
                 # measure the baseline pre-peak
                 if deprecated:
@@ -700,8 +703,9 @@ def get_baseline(fps_file, window="10D",
                 
                 if roll_med_plot == True:
                     roll_med_df = fp_df.forcediffimflux.copy()
-                    roll_med_df.iloc[bad_flag] = np.nan
-                    flux_roll_med = roll_med_df.iloc[this_fcqfid].rolling(window, center=True).median().values - baseline
+                    roll_med_df.iloc[np.where(bad_obs != 0)] = np.nan
+                    flux_roll_med = roll_med_df.iloc[this_fcqfid].rolling(window, 
+                                                     center=True).median().values - baseline
                     fnu_roll_med[this_fcqfid] = flux_roll_med *10**(29 - 
                                                                     48.6/2.5 - 
                                                                     0.4 * zp_fcqfid)
