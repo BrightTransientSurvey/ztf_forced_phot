@@ -177,7 +177,7 @@ def read_ipac_fps(fps_file):
 
     return fp_det
 
-def get_baseline(fps_file, window="10D",
+def get_baseline(fps_file, window="14D",
                  write_lc=False,
                  make_plot=False,
                  roll_med_plot = False,
@@ -418,6 +418,7 @@ def get_baseline(fps_file, window="10D",
                         fp_df.loc[fp_df.fcqfid == ufid, 'flags'] += 32
                 else:
                     fcqfid_dict[str(ufid)]['N_bl'] = 0
+                    fp_df.loc[fp_df.fcqfid == ufid, 'flags'] += 32
                 
                 # measure the baseline pre-peak
                 if deprecated:
@@ -557,7 +558,7 @@ def get_baseline(fps_file, window="10D",
                     good_diffl = fp_df.forcediffimflux.iloc[good_fcqfid].values
                     this_diffl = fp_df.forcediffimflux.iloc[this_fcqfid].values
                     med_chi = np.median(chi_ser.values)
-                    if np.mean(chi_ser.values) < 1.5:
+                    if med_chi < 1.5:
                         sys_unc = med_chi**0.5 * np.ones_like(this_diffl)
                     elif len(good_fcqfid[0]) > 0: 
                         try:
