@@ -589,7 +589,7 @@ def get_baseline(fps_file, window="14D",
                                                 runmed.values)**0.5
                     else:
                         continue
-
+                sys_unc = np.where(sys_unc < 1, 1, sys_unc)
 
                 if deprecated:
                     if ( (fcqfid_dict[key]['N_pre_peak'] >= 25) or
