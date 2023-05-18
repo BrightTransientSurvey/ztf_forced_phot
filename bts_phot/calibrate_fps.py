@@ -62,7 +62,7 @@ def read_ipac_fps(fps_file):
                                 'nearestrefchi', 'nearestrefsharp',
                                 'procstatus'])
 
-    elif ipac_version == '3':
+    elif int(ipac_version) >= 3:
         fp = pd.read_csv(fps_file,
                          delim_whitespace=True, comment='#', skiprows=57,
                          names=['index', 'field', 'ccdid', 'qid', 'filter',
@@ -121,7 +121,7 @@ def read_ipac_fps(fps_file):
         **read_opts
     )
 
-    rcid = (fp_det.ccdid.values-1)*4 + fp_det.qid.values
+    rcid = (fp_det.ccdid.values-1)*4 + fp_det.qid.values-1
     zp_rcid_g = rcid_df.zp_rcid_g.iloc[rcid]
     zp_rcid_r = rcid_df.zp_rcid_r.iloc[rcid]
     zp_rcid_i = rcid_df.zp_rcid_i.iloc[rcid]
@@ -258,6 +258,7 @@ def get_baseline(fps_file, window="14D",
     if isinstance(fps_file, str):
         if save_fig or write_lc or make_plot is True:
             ztf_name = 'ZTF' + fps_file.split('ZTF')[-1][0:9]
+            print(ztf_name)
         fp_df = read_ipac_fps(fps_file)
         if save_path == 'default':
             save_path = fps_file[0:-len(fps_file.split('/')[-1])]
@@ -635,6 +636,20 @@ def get_baseline(fps_file, window="14D",
                     
                     post_bl = np.where(good_df.jd.values > t_faded)
                     post_em = (roll_med[post_bl] - baseline)/scale_unc[post_bl]
+
+                    # test scatter after systematic correction
+                    bl = np.where(((t_peak - good_df.jd.values > 100) |
+                                  (good_df.jd.values > t_faded)) & 
+                                  (good_df['flags'].values & 8 == 0)
+                                 )
+                    chi2nu = np.sum(((good_df.iloc[bl].forcediffimflux.values -
+                                      baseline) /
+                                     scale_unc[bl])**2)/len(good_df.iloc[bl])
+                    fcqfid_dict[key]['chi2nu'] = chi2nu
+                    if chi2nu > 2:
+                        print('Warning! scaled unc are underestimated')
+                        print(f'{ztf_name} {key} has chi2nu = {chi2nu:.3f}')
+                    
 
                     #### So many nested ifs - cover your eye's Guido
                     if len(pre_em) < 10 and len(post_em) < 10:

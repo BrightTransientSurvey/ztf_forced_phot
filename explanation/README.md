@@ -18,7 +18,7 @@ We attempt to identify observations that may not be reliable, providing users wi
 
 ### Time of maximum
 
-For individual transients we determine the time of maximum by calculating a running median with a 14 day window (&pm 7 day centered on the observations themselves) for every field + filter + chip + quadrant combination (designated `fcqfid`; see [Yao et al. 2019](http://dx.doi.org/10.3847/1538-4357/ab4cf5)) in the fps products. The estimated time of maximum is determined by taking the mean of the maximum rolling median value for any g-band or r-band fcqfids taken on the primary ZTF observing grid (see [Bellm et al. 2018](http://dx.doi.org/10.1088/1538-3873/aaecbe) for more details on the primary and secondary ZTF observing grids).
+For individual transients we determine the time of maximum by calculating a running median with a 14 day window (<img src="https://render.githubusercontent.com/render/math?math=\pm"> 7 day centered on the observations themselves) for every field + filter + chip + quadrant combination (designated `fcqfid`; see [Yao et al. 2019](http://dx.doi.org/10.3847/1538-4357/ab4cf5)) in the fps products. The estimated time of maximum is determined by taking the mean of the maximum rolling median value for any g-band or r-band fcqfids taken on the primary ZTF observing grid (see [Bellm et al. 2018](http://dx.doi.org/10.1088/1538-3873/aaecbe) for more details on the primary and secondary ZTF observing grids).
 
 ### Baseline correction
 The baseline for each `fcqfid` is determined using observations obtained more than *100 d prior* to the estimated time of maximum light and long after the transient has faded below the ZTF detection threshold. The transient is (conservatively) determined to have faded below the detection threshold by assuming the peak luminosity of the transient is purely powered by radioactive <sup>56</sup>Co, and we then calculate the time to fade to 22.5 mag in the observed frame assuming the transient is at z = 0.09 (this choice of redshift is conservative). The baseline correction `C` is estimated via the median `forcediffimflux` value in the baseline region. The uncertainty on `C` is estimated from 1000 bootstrap resamples of the baseline observations, where half the difference between the 16<sup>th</sup> and 84<sup>th</sup> percentiles of the bootstrap samples is taken as the uncertainty on `C`.
@@ -51,20 +51,19 @@ scaled (see above), and the flux in microJy is calculated as:
 
 While processing the output from the IPAC FPS, we flag observations that may not be reliable or that have a suspect calibration due to difficulties in estimating the baseline correction listed above. The output flags are: 
 
-
-Flag Name | Flag value in decimal form | Description of the flag
-:---|---:|:---
-Default | 0 | Initial value for all observations
-TMaxScatter | 1 | The estimated time of maximum varies significantly (> 7 d) for observations in the different filters
-PreSNEmission | 2 | Significant flux is detected in the baseline region prior to the SN peak
-PostSNEmission | 4 | Significant flux is detected in the baseline region prior to the SN peak
-BaselineOutlier | 8 | Observation is not consistent with the estimated baseline at the 5-sigma level
-BaselineScatter | 16 | Unusually large scatter in the flux measurements in the baseline region
-BaselineSmall | 32 | There are fewer than 10 observations used to define the baseline region
-NoisyImage | 64 | Robust sigma per pixel in sci image (`scisigpix`) exceeds 25
-BadSeeing | 128 | Seeing in the science image is > 5 arcsec
-FailedImage | 256 | Processing summary and quality assurance for the science image has been flagged (infobits > 0)
-FailedMeasurement | 512 | FPS processing fails and no flux measurement is made
+Flag Name | Flag value in binary form | Flag value in decimal form | Description of the flag
+:---|---:|---:|:---
+Default | 0x0000000000 | 0 | Initial value for all observations
+TMaxScatter | 0x0000000001 | 1 | The estimated time of maximum varies significantly (> 10 d) for observations in the different filters
+PreSNEmission | 0x0000000010 | 2 | Significant flux is detected in the baseline region prior to the SN peak
+PostSNEmission | 0x0000000100 | 4 | Significant flux is detected in the baseline region prior to the SN peak
+BaselineOutlier | 0x0000001000 | 8 | Observation is not consistent with the estimated baseline at the 5-sigma level
+BaselineScatter | 0x0000010000 | 16 | Unusually large scatter in the flux measurements in the baseline region
+BaselineSmall | 0x0000100000 | 32 | There are fewer than 10 observations used to define the baseline region
+NoisyImage | 0x0001000000 | 64 | Robust sigma per pixel in sci image (`scisigpix`) exceeds 25
+BadSeeing | 0x0010000000 | 128 | Seeing in the science image is > 5 arcsec
+FailedImage | 0x0100000000 | 256 | Processing summary and quality assurance for the science image has been flagged (infobits > 0)
+FailedMeasurement | 0x1000000000 | 512 | FPS processing fails and no flux measurement is made
 
 The `PreSNEmission` and `PostSNEmission` flags were designed to identify sources with exceptionally long rise and decline times, respectively. These flags can also identify sources that flare before or after the primary peak of the transient. 
 
@@ -81,7 +80,7 @@ The final output from this procedure includes a csv file `ZTFYYnnnnnnn_fnu.csv` 
 3. fnu_microJy_unc - the uncertainty on the flux in microJy
 4. passband - the filter of the observations (ZTF_g, ZTF_r, or ZTF_i)
 5. programid - Program identifier (0 = engineering; 1 = public; 2 = private; 3 = Caltech time) ([see IPAC fps documentation](http://web.ipac.caltech.edu/staff/fmasci/ztf/forcedphot.pdf))
-6. fcqfid - field + filter + ccd + quadrant combination (see above)
+6. fcqfid - field + filter + ccd + quadrant combination ([see above](../explanation#time-of-maximum))
 7. zpdiff - photometric zeropoint for difference image
-8. sys_unc_factor - systematic uncertainty used for scaling (see above)
-9. poor_conditions - =1 if the observation is unreliable (see above)
+8. sys_unc_factor - systematic uncertainty used for scaling ([see above](../explanation#scaling-the-uncertainties))
+9. flags - bitmask containing  [see above](../explanation#-flags-bitmask)
