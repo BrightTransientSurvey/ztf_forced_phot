@@ -53,17 +53,18 @@ While processing the output from the IPAC FPS, we flag observations that may not
 
 Flag Name | Flag value in binary form | Flag value in decimal form | Description of the flag
 :---|---:|---:|:---
-Default | 0x0000000000 | 0 | Initial value for all observations
-TMaxScatter | 0x0000000001 | 1 | The estimated time of maximum varies significantly (> 10 d) for observations in the different filters
-PreSNEmission | 0x0000000010 | 2 | Significant flux is detected in the baseline region prior to the SN peak
-PostSNEmission | 0x0000000100 | 4 | Significant flux is detected in the baseline region prior to the SN peak
-BaselineOutlier | 0x0000001000 | 8 | Observation is not consistent with the estimated baseline at the 5-sigma level
-BaselineScatter | 0x0000010000 | 16 | Unusually large scatter in the flux measurements in the baseline region
-BaselineSmall | 0x0000100000 | 32 | There are fewer than 10 observations used to define the baseline region
-NoisyImage | 0x0001000000 | 64 | Robust sigma per pixel in sci image (`scisigpix`) exceeds 25
-BadSeeing | 0x0010000000 | 128 | Seeing in the science image is > 5 arcsec
-FailedImage | 0x0100000000 | 256 | Processing summary and quality assurance for the science image has been flagged (infobits > 0)
-FailedMeasurement | 0x1000000000 | 512 | FPS processing fails and no flux measurement is made
+Default | 0x00000000000 | 0 | Initial value for all observations
+TMaxScatter | 0x00000000001 | 1 | The estimated time of maximum varies significantly (> 10 d) for observations in the different filters
+PreSNEmission | 0x00000000010 | 2 | Significant flux is detected in the baseline region prior to the SN peak
+PostSNEmission | 0x00000000100 | 4 | Significant flux is detected in the baseline region prior to the SN peak
+BaselineOutlier | 0x00000001000 | 8 | Observation is not consistent with the estimated baseline at the 5-sigma level
+BaselineScatter | 0x00000010000 | 16 | Unusually large scatter in the flux measurements in the baseline region
+BaselineSmall | 0x00000100000 | 32 | There are fewer than 10 observations used to define the baseline region
+NoisyImage | 0x00001000000 | 64 | Robust sigma per pixel in sci image (`scisigpix`) exceeds 25
+BadSeeing | 0x00010000000 | 128 | Seeing in the science image is > 5 arcsec
+UnderestimatedUnc | 0x00100000000 | 256 | The uncertainties are systematically underestimated based on the <img src="https://render.githubusercontent.com/render/math?math=\chi^2"> per degree of freedom in the baseline region
+FailedImage | 0x01000000000 | 512 | Processing summary and quality assurance for the science image has been flagged (infobits > 0)
+FailedMeasurement | 0x10000000000 | 1024 | FPS processing fails and no flux measurement is made
 
 The `PreSNEmission` and `PostSNEmission` flags were designed to identify sources with exceptionally long rise and decline times, respectively. These flags can also identify sources that flare before or after the primary peak of the transient. 
 

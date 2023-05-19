@@ -64,7 +64,7 @@ def read_ipac_fps(fps_file):
 
     elif int(ipac_version) >= 3:
         fp = pd.read_csv(fps_file,
-                         delim_whitespace=True, comment='#', skiprows=57,
+                         delim_whitespace=True, comment='#',
                          names=['index', 'field', 'ccdid', 'qid', 'filter',
                                 'pid', 'infobitssci', 'sciinpseeing',
                                 'scibckgnd', 'scisigpix', 'zpmaginpsci',
@@ -242,18 +242,19 @@ def get_baseline(fps_file, window="14D",
 
 # # Summary of flags >> to be removed later once flags are locked
 # flag | bit value | meaning
-# 1 | 1 | large scatter in max
-# 2 | 2 | possible emission in pre-SN baseline
-# 3 | 4 | possible emission in post-SN baseline
-# 4 | 8 | outliers in the baseline region
-# 5 | 16 | large scatter in baseline region
-# 6 | 32 | N_baseline < 10
-# 7 | 64 | scisigpix > 25
-# 8 | 128 | sciinpseeing > 5
-# 9 | 256 | infobits > 0
-# 10 | 512 | no flux detected in forced phot
+# 1    | 1    | large scatter in max
+# 2    | 2    | possible emission in pre-SN baseline
+# 3    | 4    | possible emission in post-SN baseline
+# 4    | 8    | outliers in the baseline region
+# 5    | 16   | large scatter in baseline region
+# 6    | 32   | N_baseline < 10
+# 7    | 64   | scisigpix > 25
+# 8    | 128  | sciinpseeing > 5
+# 9    | 256  | uncertainties underestimated
+# 10   | 512  | infobits > 0
+# 11   | 1024 | no flux detected in forced phot
     
-    bad_obs_fl = 256
+    bad_obs_fl = 512
     
     if isinstance(fps_file, str):
         if save_fig or write_lc or make_plot is True:
@@ -287,8 +288,8 @@ def get_baseline(fps_file, window="14D",
     fp_df['flags'] = np.zeros(len(fp_df)).astype(int)
     fp_df.loc[fp_df.scisigpix.values > 25, 'flags'] += 64
     fp_df.loc[fp_df.sciinpseeing.values > 5, 'flags'] += 128
-    fp_df.loc[fp_df.infobitssci.values > 0, 'flags'] += 256
-    fp_df.loc[fp_df.forcediffimfluxunc == -99999, 'flags'] += 512
+    fp_df.loc[fp_df.infobitssci.values > 0, 'flags'] += 512
+    fp_df.loc[fp_df.forcediffimfluxunc == -99999, 'flags'] += 1024
     bad_obs = np.where(fp_df['flags'].values >= bad_obs_fl, 1, 0)
 
     for ufid in unique_fid:
@@ -317,12 +318,14 @@ def get_baseline(fps_file, window="14D",
             
             roll_med = flux_series.rolling(window,
                                            center=True).median().values
-            t_max = fcqf_df.jd.values[np.argmax(roll_med)]
+            roll_peak = np.argmax(roll_med)
+            t_max = fcqf_df.jd.values[roll_peak]
             flux_max = np.max(roll_med)
             flux_scatt = median_abs_deviation(fcqf_df.forcediffimflux.values,
                                               scale='normal')
-            peak_snr = flux_max/flux_scatt
-            if (peak_snr > 5):
+            max_over_scatt = flux_max/flux_scatt
+            peak_snr = flux_max/fcqf_df.forcediffimfluxunc.values[roll_peak]
+            if (max_over_scatt > 5 and peak_snr > 5):
                 fcqfid_dict[str(ufid)]['det_sn'] = True
                 fcqfid_dict[str(ufid)]['t_fcqfid_max'] = t_max
                 if ufid < 10000000:
@@ -335,12 +338,12 @@ def get_baseline(fps_file, window="14D",
         t_peak = np.mean(t_peak_list)
         for ufid in unique_fid:
             fcqfid_dict[str(ufid)]['t_peak'] = t_peak
-        if len(t_peak_list) > 1:
-            fcqfid_dict[str(ufid)]['peak_scatter'] = np.std(t_peak_list, ddof=1)
-            if np.std(t_peak_list, ddof=1) > 10:
-                print('Warning! Large scatter in time of maximum')
-                fcqfid_dict[str(ufid)]['peak_warning'] = 'large scat in t_peak'
-                fp_df['flags'] += 1 
+            if len(t_peak_list) > 1:
+                fcqfid_dict[str(ufid)]['peak_scatter'] = np.std(t_peak_list, ddof=1)
+                if np.std(t_peak_list, ddof=1) > 50:
+                    print('Warning! Large scatter in time of maximum')
+                    fcqfid_dict[str(ufid)]['peak_warning'] = 'large scat in t_peak'
+                    fp_df['flags'] += 1 
         
         around_max = np.where((fp_df.jd.values - t_peak > - 10) &
                               (fp_df.jd.values - t_peak < 10) & 
@@ -649,7 +652,7 @@ def get_baseline(fps_file, window="14D",
                     if chi2nu > 2:
                         print('Warning! scaled unc are underestimated')
                         print(f'{ztf_name} {key} has chi2nu = {chi2nu:.3f}')
-                    
+                        fp_df.loc[fp_df.fcqfid == ufid, 'flags'] += 256
 
                     #### So many nested ifs - cover your eye's Guido
                     if len(pre_em) < 10 and len(post_em) < 10:
