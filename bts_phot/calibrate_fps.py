@@ -39,6 +39,11 @@ def read_ipac_fps(fps_file):
     """
 
     ipac_version = pd.read_csv(fps_file, skiprows=1, nrows=1).columns[1][2]
+    with open(fps_file) as f:
+        ll = f.readlines()
+        for hdrline, l in enumerate(ll):
+            if l[0:7] == ' sindex':
+                break
     if ipac_version == '2':
         fp = pd.read_csv(fps_file,
                          delim_whitespace=True, comment='#', skiprows=70,
@@ -64,8 +69,8 @@ def read_ipac_fps(fps_file):
 
     elif int(ipac_version) >= 3:
         fp = pd.read_csv(fps_file,
-                         delim_whitespace=True, comment='#',
-                         names=['index', 'field', 'ccdid', 'qid', 'filter',
+                         delim_whitespace=True, comment='#', header=hdrline,
+                         names=['sindex', 'field', 'ccdid', 'qid', 'filter',
                                 'pid', 'infobitssci', 'sciinpseeing',
                                 'scibckgnd', 'scisigpix', 'zpmaginpsci',
                                 'zpmaginpsciunc', 'zpmaginpscirms',
