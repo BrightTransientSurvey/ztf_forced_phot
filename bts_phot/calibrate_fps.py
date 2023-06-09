@@ -257,7 +257,7 @@ def get_baseline(fps_file, window="14D",
     bad_obs_fl = 512
     
     if isinstance(fps_file, str):
-        if save_fig or write_lc or make_plot is True:
+        if save_fig is True or write_lc is not False or make_plot is True:
             ztf_name = 'ZTF' + fps_file.split('ZTF')[-1][0:9]
             print(ztf_name)
         fp_df = read_ipac_fps(fps_file)
@@ -514,7 +514,8 @@ def get_baseline(fps_file, window="14D",
                         for i in range(1000): 
                             medians[i] = np.median(np.random.choice(non_det, 
                                          size = len(non_det), replace = True))
-                        median_unc = np.diff(np.percentile(medians, (16,84)))[0]/2
+                        median_unc = 0.5*np.diff(np.percentile(medians, 
+                                                           (16,84)))[0]
                         low_limit = np.percentile(non_det, 10)
                         high_limit = np.percentile(non_det, 90)
                         trim = np.where((non_det > low_limit) &
@@ -539,9 +540,6 @@ def get_baseline(fps_file, window="14D",
     if make_plot is not False or write_lc is not False:
         fnu_microJy = -999.*np.ones_like(fp_df.forcediffimflux.values)
         fnu_microJy_unc = -999.*np.ones_like(fp_df.forcediffimflux.values)
-
-        if roll_med_plot == True:
-            fnu_roll_med = -999.*np.ones_like(fp_df.forcediffimflux.values)
         
         sys_sigma = np.zeros_like(fp_df.forcediffimflux.values)
         if deprecated:
@@ -619,7 +617,9 @@ def get_baseline(fps_file, window="14D",
                 else:
                     # determine if there is emission in pre/post SN baseline
                     if 'C_bl' not in fcqfid_dict[key].keys():
-                        print('{ztf_name}, {key} no C_bl'.format(ztf_name = ztf_name, key = key))
+                        print('{ztf_name}, {key} no C_bl'.format(ztf_name = 
+                                                                 ztf_name, 
+                                                                 key = key))
                         continue
                     baseline = fcqfid_dict[key]['median_bl']
                     baseline_unc = fcqfid_dict[key]['median_unc_bl']
@@ -718,17 +718,7 @@ def get_baseline(fps_file, window="14D",
                 
                 fnu_microJy_unc[this_fcqfid] = flux_dn_unc*10**(29 -
                                                                 48.6/2.5 -
-                                                                0.4*zp_fcqfid)
-                
-                if roll_med_plot == True:
-                    roll_med_df = fp_df.forcediffimflux.copy()
-                    roll_med_df.iloc[np.where(bad_obs != 0)] = np.nan
-                    flux_roll_med = roll_med_df.iloc[this_fcqfid].rolling(window, 
-                                                     center=True).median().values - baseline
-                    fnu_roll_med[this_fcqfid] = flux_roll_med *10**(29 - 
-                                                                    48.6/2.5 - 
-                                                                    0.4 * zp_fcqfid)
-                
+                                                                0.4*zp_fcqfid)  
                 if deprecated:
                     n_base_obs[this_fcqfid] = n_baseline
                     which_base[this_fcqfid] = pre_or_post
@@ -742,6 +732,8 @@ def get_baseline(fps_file, window="14D",
         if isinstance(write_lc, pd.DataFrame):
             write_df = write_lc
             write_df['jd'] = fp_df.jd.values
+            write_df['forcediffimflux'] = fp_df.forcediffimflux.values
+            write_df['forcediffimchisq'] =  fp_df.forcediffimchisq.values
         else:
             write_df = pd.DataFrame(fp_df.jd.values, columns=['jd'])
         write_df['fnu_microJy'] = fnu_microJy
@@ -751,7 +743,6 @@ def get_baseline(fps_file, window="14D",
         write_df['fcqfid'] = fp_df.fcqfid.values
         write_df['zpdiff'] = fp_df.zpdiff.values
         write_df['sys_unc_factor'] = sys_sigma
-        write_df['poor_conditions'] = bad_obs
         write_df['flags'] = fp_df['flags'].values
         if deprecated:
             write_df['C'] = C_baseline
@@ -800,7 +791,6 @@ def get_baseline(fps_file, window="14D",
                     plot_flux = fnu_microJy[this_fcqfid_good]
                     plot_flux_unc = fnu_microJy_unc[this_fcqfid_good]
                     
-                    # AW: avoid plotting the all -999s
                     if (plot_flux == -999).sum() == len(plot_flux):
                         continue
 
@@ -811,10 +801,15 @@ def get_baseline(fps_file, window="14D",
                                             ecolor=color_dict[ufid % 10],
                                             mfc='None')
                     
-                    # AW: add in the rolling median in the plot
-                    if roll_med_plot == True: 
-                        plot_roll_med = fnu_roll_med[this_fcqfid_good]
-                        ax.plot(plot_jd, plot_roll_med, color = 'lightgrey', zorder = 2)
+                    if roll_med_plot == True:
+                        jd_time = Time(plot_jd + jdstart, format='jd')
+                        f_ser = pd.Series(plot_flux, 
+                                          index = 
+                                          pd.to_datetime(jd_time.datetime))
+                        plot_roll = f_ser.rolling(window, 
+                                                  center=True).median().values
+                        ax.plot(plot_jd, plot_roll, 
+                                color = 'lightgrey', zorder = 2)
                     
                     ax.axvline(x = t_peak - jdstart, color = '0.5', ls = '--')
                     ax.axhline(y = 0, color = '0.5',
