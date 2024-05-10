@@ -11,7 +11,7 @@ import astropy.units as u
 from astropy.time import Time
 from astropy.coordinates import EarthLocation, SkyCoord, AltAz
 
-from supersmoother import SuperSmoother
+# from supersmoother import SuperSmoother
 
 pkg_resources.require("pandas>=1.3")
 
@@ -554,43 +554,60 @@ def get_baseline(fps_file, window="14D",
                 if deprecated:
                     sys_unc = max(fcqfid_dict[key]['chi_pre']**0.5, 1)
                 else:
-                    good_fcqfid = np.where((fp_df.fcqfid.values == ufid) & 
+                    good_fcqfid = np.where((fp_df.fcqfid.values == ufid) &
                                            (fp_df['flags'].values < bad_obs_fl))
-                    chi_ser = fp_df.forcediffimchisq.iloc[good_fcqfid].copy()
-                    good_diffl = fp_df.forcediffimflux.iloc[good_fcqfid].values
+                    # chi_ser = fp_df.forcediffimchisq.iloc[good_fcqfid].copy()
+                    # good_diffl = fp_df.forcediffimflux.iloc[good_fcqfid].values
                     this_diffl = fp_df.forcediffimflux.iloc[this_fcqfid].values
-                    med_chi = np.median(chi_ser.values)
-                    if med_chi < 1.5:
-                        sys_unc = med_chi**0.5 * np.ones_like(this_diffl)
-                    elif len(good_fcqfid[0]) > 0: 
-                        try:
-                            model = SuperSmoother()
-                            model.fit(fp_df.forcediffimflux.iloc[good_fcqfid], 
-                                      fp_df.forcediffimchisq.iloc[good_fcqfid])
-                            # find the smoothed fit to the data
-                            # interpolate to non-good obs
-                            yfit = model.predict(np.sort(good_diffl)) 
-                            chi_interp = np.interp(this_diffl,
-                                                np.sort(good_diffl), 
-                                                yfit)
-                            chi_interp = np.where(chi_interp < 1, 1, 
-                                                  chi_interp)
-                            sys_unc = chi_interp**0.5
-                            # is this warning necessary?
-                            if np.isnan(sys_unc).any():
-                                print(f'{ztf_name} {ufid} bad interp')
-                        except:                            
-                            chi_ser.index = pd.to_datetime(good_diffl, 
-                                                           unit='s', 
-                                                           origin='unix')
-                            chi_ser.sort_index(inplace=True)
-                            runmed = chi_ser.rolling('1000s', 
-                                                     center=True).median()
-                            sys_unc = np.interp(this_diffl, 
-                                                np.sort(good_diffl), 
-                                                runmed.values)**0.5
-                    else:
-                        continue
+                    chi_df = pd.read_csv(
+                                pkg_resources.resource_stream(__name__, 
+                                'cal_data/chi_lookup.csv')
+                                )                    
+                    if ufid % 10 == 1:
+                        sys_unc = np.interp(this_diffl, 
+                                            chi_df.diffflux_grid.values,
+                                            chi_df.g_chi_interp.values)**0.5
+                    elif ufid % 10 == 2:
+                        sys_unc = np.interp(this_diffl, 
+                                            chi_df.diffflux_grid.values,
+                                            chi_df.r_chi_interp.values)**0.5
+                    elif ufid % 10 == 3:
+                        sys_unc = np.interp(this_diffl, 
+                                            chi_df.diffflux_grid.values,
+                                            chi_df.i_chi_interp.values)**0.5
+                                                
+                    # med_chi = np.median(chi_ser.values)
+                    # if med_chi < 1.5:
+                    #     sys_unc = med_chi**0.5 * np.ones_like(this_diffl)
+                    # elif len(good_fcqfid[0]) > 0:
+                    #     try:
+                    #         model = SuperSmoother()
+                    #         model.fit(fp_df.forcediffimflux.iloc[good_fcqfid],
+                    #                   fp_df.forcediffimchisq.iloc[good_fcqfid])
+                    #         # find the smoothed fit to the data
+                    #         # interpolate to non-good obs
+                    #         yfit = model.predict(np.sort(good_diffl))
+                    #         chi_interp = np.interp(this_diffl,
+                    #                             np.sort(good_diffl),
+                    #                             yfit)
+                    #         chi_interp = np.where(chi_interp < 1, 1,
+                    #                               chi_interp)
+                    #         sys_unc = chi_interp**0.5
+                    #         # is this warning necessary?
+                    #         if np.isnan(sys_unc).any():
+                    #             print(f'{ztf_name} {ufid} bad interp')
+                    #     except:
+                    #         chi_ser.index = pd.to_datetime(good_diffl,
+                    #                                        unit='s',
+                    #                                        origin='unix')
+                    #         chi_ser.sort_index(inplace=True)
+                    #         runmed = chi_ser.rolling('1000s',
+                    #                                  center=True).median()
+                    #         sys_unc = np.interp(this_diffl,
+                    #                             np.sort(good_diffl),
+                    #                             runmed.values)**0.5
+                    # else:
+                    #     continue
                 sys_unc = np.where(sys_unc < 1, 1, sys_unc)
 
                 if deprecated:

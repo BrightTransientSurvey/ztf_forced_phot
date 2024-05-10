@@ -12,7 +12,7 @@ IPAC fps output requires a "baseline correction" ([see the docs](http://web.ipac
 
 ### Identifying unreliable observations
 
-We attempt to identify observations that may not be reliable, providing users with the ability to remove these data from their analysis. Within this larger framework of warnings ([see below](../explanation#-flags-bitmask) for an explanation of all of the processing flags), we exclude all observations with `flags > 256` from our analysis. This corresponds to science images that do not pass the IPAC quality assurance thresholds and difference images for which the FPS does not provide any output, as highlighted in the figure below. Any such observations are excluded from the calculation of the baseline correction.
+We attempt to identify observations that may not be reliable, providing users with the ability to remove these data from their analysis. Within this larger framework of warnings ([see below](../explanation#-flags-bitmask) for an explanation of all of the processing flags), we exclude all observations with `flags >= 512` from our analysis. This corresponds to science images that do not pass the IPAC quality assurance thresholds and difference images for which the FPS does not provide any output, as highlighted in the figure below. Any such observations are excluded from the calculation of the baseline correction.
 
 <img src="./../images/flagged_obs.jpg" raw=True>
 
@@ -56,7 +56,7 @@ Flag Name | Flag value in binary form | Flag value in decimal form | Description
 Default | 0x00000000000 | 0 | Initial value for all observations
 TMaxScatter | 0x00000000001 | 1 | The estimated time of maximum varies significantly (> 10 d) for observations in the different filters
 PreSNEmission | 0x00000000010 | 2 | Significant flux is detected in the baseline region prior to the SN peak
-PostSNEmission | 0x00000000100 | 4 | Significant flux is detected in the baseline region prior to the SN peak
+PostSNEmission | 0x00000000100 | 4 | Significant flux is detected in the baseline region post to the SN peak
 BaselineOutlier | 0x00000001000 | 8 | Observation is not consistent with the estimated baseline at the 5-sigma level
 BaselineScatter | 0x00000010000 | 16 | Unusually large scatter in the flux measurements in the baseline region
 BaselineSmall | 0x00000100000 | 32 | There are fewer than 10 observations used to define the baseline region
