@@ -333,7 +333,7 @@ def plot_posterior_draws(sn, lc_path='', out_path='', save_fig=True):
         ax.set_xlabel('Time (JD - 2018 Jan 01)',fontsize=14)
         ax.set_ylabel(r'Flux ($\mu$Jy)',fontsize=14)
         ax.tick_params(axis='both', which='major', labelsize=12)
-        fig.subplots_adjust(left=0.0.8,bottom=0.13,right=0.99, top=0.99)
+        fig.subplots_adjust(left=0.8,bottom=0.13,right=0.99, top=0.99)
     if save_fig:
         fig.savefig(f"{lc_path}/{sn}_posterior.png", 
                     dpi = 600, transparent=True)
