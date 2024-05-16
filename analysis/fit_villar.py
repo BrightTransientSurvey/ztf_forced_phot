@@ -169,8 +169,6 @@ def fit_gr(sn, lc_path='', out_path=''):
                                         lower=-2*sigma_est, 
                                         upper=2*sigma_est)
 
-            no_p = pm.Normal.dist(mu = 5, sigma = 5)
-            yes_p = pm.Normal.dist(mu = 60, sigma = 30)
 
             gamma = pm.NormalMixture("gamma", 
                                      w=[2/3, 1/3], 
