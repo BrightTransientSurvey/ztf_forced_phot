@@ -111,7 +111,7 @@ def fit_gr(sn, lc_path='', out_path=''):
         ZTF name of the SN to be fit by the model
     
     lc_path : string (optional, default = '')
-        File path to the csv file with the ZTF light curve
+        File path to the folder containing ZTF light curves
     
     out_path : string (optional, default = '')
         File path to write output files (MCMC chains and summary statistics)
