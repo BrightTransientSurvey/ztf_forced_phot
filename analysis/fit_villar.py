@@ -111,7 +111,7 @@ def fit_gr(sn, lc_path='', out_path=''):
         ZTF name of the SN to be fit by the model
     
     lc_path : string (optional, default = '')
-        File path to the csv file with the ZTF light curve
+        File path to folder containing processed fps lc files from Miller+24
     
     out_path : string (optional, default = '')
         File path to write output files (MCMC chains and summary statistics)
@@ -121,7 +121,7 @@ def fit_gr(sn, lc_path='', out_path=''):
     for pb in lc_df.passband.unique():
         filt = pb[-1]
     
-        # fit the g band model
+        # Fit the model with the current filter
         pb_lc = np.where((lc_df["passband"] == f'ZTF_{filt}') & 
                          (lc_df["flags"] == 0) & 
                          # # CHECK IF THIS IS WHAT SHOULD BE DONE!!!
@@ -139,6 +139,7 @@ def fit_gr(sn, lc_path='', out_path=''):
         Y_unc = ((lc_df['fnu_microJy_unc']).values)[pb_lc]
     
         with pm.Model() as model:
+            # Define priors based on Villar+19
             x_grid = np.logspace(-3, np.log10(60), 500)
             logistic_pdf = lambda x, tau, x0: 1/(1 + np.exp(-(x - x0)/tau)) 
             trise = pm.Interpolated('trise', x_grid, 
@@ -168,8 +169,6 @@ def fit_gr(sn, lc_path='', out_path=''):
                                         lower=-2*sigma_est, 
                                         upper=2*sigma_est)
 
-            no_p = pm.Normal.dist(mu = 5, sigma = 5)
-            yes_p = pm.Normal.dist(mu = 60, sigma = 30)
 
             gamma = pm.NormalMixture("gamma", 
                                      w=[2/3, 1/3], 
@@ -198,7 +197,7 @@ def fit_gr(sn, lc_path='', out_path=''):
             # Likelihood (sampling distribution) of observations
             Y_obs = pm.Normal('Y_obs', mu=mu_switch, 
                               sigma=Y_unc, observed=Y_observed)
-
+            # Draw samples from the posterior
             data = pm.sample(1000, tune = 15000, cores = 4, 
                              return_inferencedata=True, 
                              progressbar = True, 
@@ -218,10 +217,10 @@ def plot_posterior_draws(sn, lc_path='', out_path='', save_fig=True):
         ZTF name of the SN to be fit by the model
     
     lc_path : string (optional, default = '')
-        File path to the csv file with the ZTF light curve
+        File path to folder containing processed fps lc files from Miller+24
     
     out_path : string (optional, default = '')
-        File path to write output files (MCMC chains and summary statistics)
+        File path to files saved by fit_gr()  (MCMC chains and summary statistics)
     
     save_fig : boolean (optional, default = True)
         Boolean flag indicating whether or not to save the plot as a png
@@ -333,7 +332,7 @@ def plot_posterior_draws(sn, lc_path='', out_path='', save_fig=True):
         ax.set_xlabel('Time (JD - 2018 Jan 01)',fontsize=14)
         ax.set_ylabel(r'Flux ($\mu$Jy)',fontsize=14)
         ax.tick_params(axis='both', which='major', labelsize=12)
-        fig.subplots_adjust(left=0.0.8,bottom=0.13,right=0.99, top=0.99)
+        fig.subplots_adjust(left=0.8,bottom=0.13,right=0.99, top=0.99)
     if save_fig:
         fig.savefig(f"{lc_path}/{sn}_posterior.png", 
                     dpi = 600, transparent=True)
@@ -349,7 +348,7 @@ def main():
                    help='ZTF transient name')
     # Optional arguments
     parser.add_argument('lc_path', type=str, nargs='?', default=None,
-                   help='path to the processed fps lc file from Miller+24')
+                   help='path to folder containing processed fps lc file from Miller+24')
     parser.add_argument('out_path', type=str, nargs='?', default=None,
                    help='path for output MCMC chains')
     
