@@ -781,7 +781,9 @@ def get_baseline(fps_file, window="14D",
         color_dict = {1: 'MediumAquaMarine', 2: 'Crimson', 3: 'Goldenrod'}
         nplots = 0
         jdstart = 2458119.5
+        # start by assuming one panel per FCQFID
         collapse_plots = False
+
         for key in fcqfid_dict:
             if fcqfid_dict[key]['N_bl'] > 1:
                 this_fcqfid_good = np.where((fp_df.fcqfid.values == int(key)) & 
@@ -795,17 +797,17 @@ def get_baseline(fps_file, window="14D",
                         nplots += 1
 
         # sometimes nplots is too many (12 in worst known case); combine plots if this is the case
-        if nplots > 6:  # TODO: make this an argument? there's already so many
-            collapse_plots = True
-            roll_med_plot = False
+        if nplots > 6:
+            collapse_plots, roll_med_plot = True, False
             nplots = 3  # group by filter instead (3 for g,r,i)
+            marker_dict = {0: 'o', 1: 's', 2: '^', 3: '<', 4: '>', 5: '*'}
+            gri_marker_counters = [0, 0, 0]
 
-        # TODO: reduce repeated code (rearrange if statements and collapse_plot vs not collapse_plots
         if nplots > 0:
             fig = plt.figure() if make_plot is True else make_plot
             fig.set_size_inches(8, nplots * 3 + 0.5)
             axes = fig.subplots(nplots, 1, sharex=True)
-            this_plot_num = 0
+            plot_num = 0
 
             for key in fcqfid_dict:
                 if fcqfid_dict[str(key)]['N_bl'] > 1:
@@ -821,20 +823,16 @@ def get_baseline(fps_file, window="14D",
                         continue
 
                     if collapse_plots:
-                        fid_dict_ = {'1': 'ZTF_g', '2': 'ZTF_r', '3': 'ZTF_i'}
-                        gri_mark_counters = [0, 0, 0]
-                        marker_dict = {0: 'o', 1: 's', 2: '^', 3: '<', 4: '>', 5: '*'}
-
                         # select subplot based on current filter
-                        this_plot_num = int(str(key)[-1]) - 1
+                        plot_num = int(str(key)[-1]) - 1
 
                         # select marker based on FCQ(F)ID
-                        this_marker = marker_dict[gri_mark_counters[this_plot_num]]
-                        gri_mark_counters[this_plot_num] += 1
+                        this_marker = marker_dict[gri_marker_counters[plot_num]]
+                        gri_marker_counters[plot_num] += 1
                     else:
                         this_marker = 'o'
 
-                    ax = axes[this_plot_num]
+                    ax = axes[plot_num]
 
                     ax.errorbar(plot_jd, plot_flux, plot_flux_unc,
                                 fmt=this_marker,
@@ -870,18 +868,18 @@ def get_baseline(fps_file, window="14D",
                         ax.yaxis.label.set_color('white')
                         ax.xaxis.label.set_color('white')
 
-                    if collapse_plots:
-                        ax.legend()
-                    else:
+                    if not collapse_plots:
                         ax.set_title(f"{ztf_name}, {ufid}")
-                        this_plot_num += 1
+                        plot_num += 1
+                    else:
+                        ax.legend()
 
                 if collapse_plots:
                     axes[0].set_title(f"{ztf_name}, ZTF_g")
                     axes[1].set_title(f"{ztf_name}, ZTF_r")
                     axes[2].set_title(f"{ztf_name}, ZTF_i")
             
-            ax.set_xlabel('Time (JD - 2018 Jan 01)', fontsize = 14)
+            axes[-1].set_xlabel('Time (JD - 2018 Jan 01)', fontsize = 14)
             
             fig.tight_layout()
             if save_fig:
