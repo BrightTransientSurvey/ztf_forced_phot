@@ -842,6 +842,16 @@ def get_baseline(fps_file, window="14D",
                                 ecolor=color_dict[ufid % 10],
                                 mfc='None', label=str(key))
 
+                    if roll_med_plot == True:
+                        jd_time = Time(plot_jd + jdstart, format='jd')
+                        f_ser = pd.Series(plot_flux,
+                                          index=
+                                          pd.to_datetime(jd_time.datetime))
+                        plot_roll = f_ser.rolling(window,
+                                                  center=True).median().values
+                        ax.plot(plot_jd, plot_roll,
+                                color='lightgrey', zorder=2)
+
                     ax.axvline(x=t_peak - jdstart, color='0.5', ls='--')
                     ax.axhline(y=0, color='0.5',
                                ls=(0, [8, 1.5, 1, 1.5]), lw=0.5, alpha=0.75)
