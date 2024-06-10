@@ -781,6 +781,7 @@ def get_baseline(fps_file, window="14D",
         color_dict = {1: 'MediumAquaMarine', 2: 'Crimson', 3: 'Goldenrod'}
         nplots = 0
         jdstart = 2458119.5
+        collapse_plots = False
         for key in fcqfid_dict:
             if fcqfid_dict[key]['N_bl'] > 1:
                 this_fcqfid_good = np.where((fp_df.fcqfid.values == int(key)) & 
@@ -796,6 +797,7 @@ def get_baseline(fps_file, window="14D",
         # sometimes nplots is too many (12 in worst known case); combine plots if this is the case
         if nplots > 6:  # TODO: make this an argument? there's already so many
             collapse_plots = True
+            roll_med_plot = False
             nplots = 3  # group by filter instead (3 for g,r,i)
 
         # TODO: reduce repeated code (rearrange if statements and collapse_plot vs not collapse_plots
@@ -803,128 +805,71 @@ def get_baseline(fps_file, window="14D",
             fig = plt.figure() if make_plot is True else make_plot
             fig.set_size_inches(8, nplots * 3 + 0.5)
             axes = fig.subplots(nplots, 1, sharex=True)
+            this_plot_num = 0
 
-            if collapse_plots:
-                fid_dict_ = {'1': 'ZTF_g', '2': 'ZTF_r', '3': 'ZTF_i'}
-                gri_mark_counters = [0, 0, 0]
-                marker_dict = {0: 'o', 1: 's', 2: '^', 3: '<', 4: '>', 5: '*'}
+            for key in fcqfid_dict:
+                if fcqfid_dict[str(key)]['N_bl'] > 1:
+                    ufid = int(key)
+                    this_fcqfid_good = np.where((fp_df.fcqfid.values == ufid) &
+                                                (bad_obs == 0))
 
-                for key in fcqfid_dict:
-                    # select subplot based on current filter
-                    this_plot_num = int(str(key)[-1]) - 1
+                    plot_jd = fp_df.jd.values[this_fcqfid_good] - jdstart
+                    plot_flux = fnu_microJy[this_fcqfid_good]
+                    plot_flux_unc = fnu_microJy_unc[this_fcqfid_good]
+
+                    if (plot_flux == -999).sum() == len(plot_flux):
+                        continue
+
+                    if collapse_plots:
+                        fid_dict_ = {'1': 'ZTF_g', '2': 'ZTF_r', '3': 'ZTF_i'}
+                        gri_mark_counters = [0, 0, 0]
+                        marker_dict = {0: 'o', 1: 's', 2: '^', 3: '<', 4: '>', 5: '*'}
+
+                        # select subplot based on current filter
+                        this_plot_num = int(str(key)[-1]) - 1
+
+                        # select marker based on FCQ(F)ID
+                        this_marker = marker_dict[gri_mark_counters[this_plot_num]]
+                        gri_mark_counters[this_plot_num] += 1
+                    else:
+                        this_marker = 'o'
+
                     ax = axes[this_plot_num]
-                    # select marker based on FCQ(F)ID
-                    this_marker = marker_dict[gri_mark_counters[this_plot_num]]
-                    gri_mark_counters[this_plot_num] += 1
 
+                    ax.errorbar(plot_jd, plot_flux, plot_flux_unc,
+                                fmt=this_marker,
+                                mec=color_dict[ufid % 10],
+                                ecolor=color_dict[ufid % 10],
+                                mfc='None', label=str(key))
 
-                    if fcqfid_dict[str(key)]['N_bl'] > 1:
-                        ufid = int(key)
-                        this_fcqfid_good = np.where((fp_df.fcqfid.values == ufid) &
-                                                    (bad_obs == 0))
+                    ax.axvline(x=t_peak - jdstart, color='0.5', ls='--')
+                    ax.axhline(y=0, color='0.5',
+                               ls=(0, [8, 1.5, 1, 1.5]), lw=0.5, alpha=0.75)
+                    ax.axvspan(0, t_peak - jdstart - 100,
+                               color='Cornsilk', alpha=0.6, lw=0)
+                    ax.axvspan(t_faded - jdstart, 1e6,
+                               color='Cornsilk', alpha=0.6, lw=0)
+                    ax.set_ylabel(r'flux ($\mu$Jy)', fontsize=14)
+                    ax.set_xlim(np.min(fp_df.jd.values - jdstart) - 10,
+                                    np.max(fp_df.jd.values - jdstart) + 10)
 
-                        plot_jd = fp_df.jd.values[this_fcqfid_good] - jdstart
-                        plot_flux = fnu_microJy[this_fcqfid_good]
-                        plot_flux_unc = fnu_microJy_unc[this_fcqfid_good]
+                    if talk_plot:
+                        ax.tick_params(axis='both', colors='white')
+                        for spine in ['top', 'bottom', 'left', 'right']:
+                            ax.spines[spine].set_color('white')
+                        ax.yaxis.label.set_color('white')
+                        ax.xaxis.label.set_color('white')
 
-                        if (plot_flux == -999).sum() == len(plot_flux):
-                            continue
-
-                        ax.errorbar(plot_jd, plot_flux, plot_flux_unc,
-                                    fmt=this_marker,
-                                    mec=color_dict[ufid % 10],
-                                    ecolor=color_dict[ufid % 10],
-                                    mfc='None', label=str(key))
-                        if roll_med_plot == True:
-                            jd_time = Time(plot_jd + jdstart, format='jd')
-                            f_ser = pd.Series(plot_flux,
-                                              index=
-                                              pd.to_datetime(jd_time.datetime))
-                            plot_roll = f_ser.rolling(window,
-                                                      center=True).median().values
-                            ax.plot(plot_jd, plot_roll,
-                                    color='lightgrey', zorder=2)
-
-                        # TODO: adjust - peaks could be at different times in different filters
-                        ax.axvline(x=t_peak - jdstart, color='0.5', ls='--')
-                        ax.axhline(y=0, color='0.5',
-                                   ls=(0, [8, 1.5, 1, 1.5]), lw=0.5, alpha=0.75)
-                        ax.axvspan(0, t_peak - jdstart - 100,
-                                   color='Cornsilk', alpha=0.6, lw=0)
-                        ax.axvspan(t_faded - jdstart, 1e6,
-                                   color='Cornsilk', alpha=0.6, lw=0)
-                        ax.set_ylabel(r'flux ($\mu$Jy)', fontsize=14)
-                        # ax.set_xlim(np.min(fp_df.jd.values - jdstart) - 10,
-                        #            np.max(fp_df.jd.values - jdstart) + 10)
-                        # these collapsed plots are crowded - zoom closer to peak
-                        # ax.set_title(f"{ztf_name}, {ufid}")
-
-                        if talk_plot:
-                            ax.tick_params(axis='both', colors='white')
-                            for spine in ['top', 'bottom', 'left', 'right']:
-                                ax.spines[spine].set_color('white')
-                            ax.yaxis.label.set_color('white')
-                            ax.xaxis.label.set_color('white')
-
-                    ax.set_xlim(np.min(fp_df.jd.values - jdstart) - 2,  # this isn't working quite yet
-                                np.max(fp_df.jd.values - jdstart) + 2)
-                    ax.legend()
-
-                axes[0].set_title(f"{ztf_name}, ZTF_g")
-                axes[1].set_title(f"{ztf_name}, ZTF_r")
-                axes[2].set_title(f"{ztf_name}, ZTF_i")
-
-            if not collapse_plots:
-                plot_num = 0
-                for key in fcqfid_dict:
-                    if fcqfid_dict[key]['N_bl'] > 1:
-                        ufid = int(key)
-                        this_fcqfid_good = np.where((fp_df.fcqfid.values == ufid) &
-                                                    (bad_obs == 0))
-
-                        plot_jd = fp_df.jd.values[this_fcqfid_good] - jdstart
-                        plot_flux = fnu_microJy[this_fcqfid_good]
-                        plot_flux_unc = fnu_microJy_unc[this_fcqfid_good]
-
-                        if (plot_flux == -999).sum() == len(plot_flux):
-                            continue
-
-                        ax = axes[plot_num] if nplots > 1 else axes
-                        ax.errorbar(plot_jd, plot_flux, plot_flux_unc,
-                                                fmt='o',
-                                                mec=color_dict[ufid % 10],
-                                                ecolor=color_dict[ufid % 10],
-                                                mfc='None')
-
-                        if roll_med_plot == True:
-                            jd_time = Time(plot_jd + jdstart, format='jd')
-                            f_ser = pd.Series(plot_flux,
-                                              index =
-                                              pd.to_datetime(jd_time.datetime))
-                            plot_roll = f_ser.rolling(window,
-                                                      center=True).median().values
-                            ax.plot(plot_jd, plot_roll,
-                                    color = 'lightgrey', zorder = 2)
-
-                        ax.axvline(x = t_peak - jdstart, color = '0.5', ls = '--')
-                        ax.axhline(y = 0, color = '0.5',
-                                   ls = (0, [8, 1.5, 1, 1.5]), lw = 0.5, alpha=0.75)
-                        ax.axvspan(0, t_peak - jdstart - 100,
-                                   color='Cornsilk', alpha=0.6, lw=0)
-                        ax.axvspan(t_faded - jdstart, 1e6,
-                                   color='Cornsilk', alpha=0.6, lw=0)
-                        ax.set_ylabel(r'flux ($\mu$Jy)', fontsize = 14)
-                        ax.set_xlim(np.min(fp_df.jd.values - jdstart)-10,
-                                    np.max(fp_df.jd.values - jdstart)+10)
+                    if collapse_plots:
+                        ax.legend()
+                    else:
                         ax.set_title(f"{ztf_name}, {ufid}")
+                        this_plot_num += 1
 
-                        if talk_plot:
-                            ax.tick_params(axis='both', colors='white')
-                            for spine in ['top', 'bottom', 'left', 'right']:
-                                ax.spines[spine].set_color('white')
-                            ax.yaxis.label.set_color('white')
-                            ax.xaxis.label.set_color('white')
-                        plot_num += 1
+                if collapse_plots:
+                    axes[0].set_title(f"{ztf_name}, ZTF_g")
+                    axes[1].set_title(f"{ztf_name}, ZTF_r")
+                    axes[2].set_title(f"{ztf_name}, ZTF_i")
             
             ax.set_xlabel('Time (JD - 2018 Jan 01)', fontsize = 14)
             
