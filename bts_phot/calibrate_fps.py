@@ -781,8 +781,6 @@ def get_baseline(fps_file, window="14D",
         color_dict = {1: 'MediumAquaMarine', 2: 'Crimson', 3: 'Goldenrod'}
         nplots = 0
         jdstart = 2458119.5
-        # start by assuming one panel per FCQFID
-        collapse_plots = False
 
         for key in fcqfid_dict:
             if fcqfid_dict[key]['N_bl'] > 1:
@@ -796,18 +794,14 @@ def get_baseline(fps_file, window="14D",
                        ):
                         nplots += 1
 
-        # sometimes nplots is too many (12 in worst known case); combine plots if this is the case
-        if nplots > 6:
-            collapse_plots, roll_med_plot = True, False
+        if nplots > 0:
             nplots = 3  # group by filter instead (3 for g,r,i)
             marker_dict = {0: 'o', 1: 's', 2: '^', 3: '<', 4: '>', 5: '*'}
             gri_marker_counters = [0, 0, 0]
 
-        if nplots > 0:
             fig = plt.figure() if make_plot is True else make_plot
             fig.set_size_inches(8, nplots * 3 + 0.5)
             axes = fig.subplots(nplots, 1, sharex=True)
-            plot_num = 0
 
             for key in fcqfid_dict:
                 if fcqfid_dict[str(key)]['N_bl'] > 1:
@@ -822,23 +816,20 @@ def get_baseline(fps_file, window="14D",
                     if (plot_flux == -999).sum() == len(plot_flux):
                         continue
 
-                    if collapse_plots:
-                        # select subplot based on current filter
-                        plot_num = int(str(key)[-1]) - 1
+                    # select subplot based on current filter
+                    plot_num = int(str(key)[-1]) - 1
 
-                        # select marker based on FCQ(F)ID
-                        this_marker = marker_dict[gri_marker_counters[plot_num]]
-                        gri_marker_counters[plot_num] += 1
-                    else:
-                        this_marker = 'o'
+                    # select marker based on FCQ(F)ID
+                    this_marker = marker_dict[gri_marker_counters[plot_num]]
+                    gri_marker_counters[plot_num] += 1
 
                     ax = axes[plot_num]
-
                     ax.errorbar(plot_jd, plot_flux, plot_flux_unc,
                                 fmt=this_marker,
                                 mec=color_dict[ufid % 10],
                                 ecolor=color_dict[ufid % 10],
                                 mfc='None', label=str(key))
+                    ax.legend()
 
                     if roll_med_plot == True:
                         jd_time = Time(plot_jd + jdstart, format='jd')
@@ -868,17 +859,9 @@ def get_baseline(fps_file, window="14D",
                         ax.yaxis.label.set_color('white')
                         ax.xaxis.label.set_color('white')
 
-                    if not collapse_plots:
-                        ax.set_title(f"{ztf_name}, {ufid}")
-                        plot_num += 1
-                    else:
-                        ax.legend()
-
-                if collapse_plots:
-                    axes[0].set_title(f"{ztf_name}, ZTF_g")
-                    axes[1].set_title(f"{ztf_name}, ZTF_r")
-                    axes[2].set_title(f"{ztf_name}, ZTF_i")
-            
+            axes[0].set_title(f"{ztf_name}, ZTF_g")
+            axes[1].set_title(f"{ztf_name}, ZTF_r")
+            axes[2].set_title(f"{ztf_name}, ZTF_i")
             axes[-1].set_xlabel('Time (JD - 2018 Jan 01)', fontsize = 14)
             
             fig.tight_layout()
