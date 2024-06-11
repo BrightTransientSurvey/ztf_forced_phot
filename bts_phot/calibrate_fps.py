@@ -831,15 +831,15 @@ def get_baseline(fps_file, window="14D",
                                 mfc='None', label=str(key))
                     ax.legend()
 
-                    if roll_med_plot == True:
-                        jd_time = Time(plot_jd + jdstart, format='jd')
-                        f_ser = pd.Series(plot_flux,
-                                          index=
-                                          pd.to_datetime(jd_time.datetime))
-                        plot_roll = f_ser.rolling(window,
-                                                  center=True).median().values
-                        ax.plot(plot_jd, plot_roll,
-                                color='lightgrey', zorder=2)
+                    #if roll_med_plot == True:
+                    #    jd_time = Time(plot_jd + jdstart, format='jd')
+                    #    f_ser = pd.Series(plot_flux,
+                    #                      index=
+                    #                      pd.to_datetime(jd_time.datetime))
+                    #    plot_roll = f_ser.rolling(window,
+                    #                              center=True).median().values
+                    #    ax.plot(plot_jd, plot_roll,
+                    #            color='lightgrey', zorder=2)
 
                     ax.axvline(x=t_peak - jdstart, color='0.5', ls='--')
                     ax.axhline(y=0, color='0.5',
@@ -862,7 +862,7 @@ def get_baseline(fps_file, window="14D",
             axes[0].set_title(f"{ztf_name}, ZTF_g")
             axes[1].set_title(f"{ztf_name}, ZTF_r")
             axes[2].set_title(f"{ztf_name}, ZTF_i")
-            axes[-1].set_xlabel('Time (JD - 2018 Jan 01)', fontsize = 14)
+            axes[2].set_xlabel('Time (JD - 2018 Jan 01)', fontsize=14)
             
             fig.tight_layout()
             if save_fig:
