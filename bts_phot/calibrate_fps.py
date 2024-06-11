@@ -180,7 +180,6 @@ def read_ipac_fps(fps_file):
 def get_baseline(fps_file, window="14D",
                  write_lc=False,
                  make_plot=False,
-                 roll_med_plot = False,
                  save_fig=False,
                  talk_plot=False,
                  save_path='default', 
@@ -214,10 +213,6 @@ def get_baseline(fps_file, window="14D",
         If True, a plot of the calibrated light curve is created
         If a matplotlib figure is provided, it will be used for plotting
         the calibrated lightcurve
-        
-    roll_med_plot: bool (optional, default = 'False')
-        If True, plot the rolling median of the calibrated photometry on top of 
-        the calibrated light curve.
 
     save_fig : bool (optional, default = 'False')
         If True, the resulting light curve plot is saved as a png
