@@ -180,7 +180,6 @@ def read_ipac_fps(fps_file):
 def get_baseline(fps_file, window="14D",
                  write_lc=False,
                  make_plot=False,
-                 roll_med_plot = False,
                  save_fig=False,
                  talk_plot=False,
                  save_path='default', 
@@ -214,10 +213,6 @@ def get_baseline(fps_file, window="14D",
         If True, a plot of the calibrated light curve is created
         If a matplotlib figure is provided, it will be used for plotting
         the calibrated lightcurve
-        
-    roll_med_plot: bool (optional, default = 'False')
-        If True, plot the rolling median of the calibrated photometry on top of 
-        the calibrated light curve.
 
     save_fig : bool (optional, default = 'False')
         If True, the resulting light curve plot is saved as a png
@@ -781,6 +776,7 @@ def get_baseline(fps_file, window="14D",
         color_dict = {1: 'MediumAquaMarine', 2: 'Crimson', 3: 'Goldenrod'}
         nplots = 0
         jdstart = 2458119.5
+
         for key in fcqfid_dict:
             if fcqfid_dict[key]['N_bl'] > 1:
                 this_fcqfid_good = np.where((fp_df.fcqfid.values == int(key)) & 
@@ -794,61 +790,74 @@ def get_baseline(fps_file, window="14D",
                         nplots += 1
 
         if nplots > 0:
+            nplots = 3  # group by filter instead (3 for g,r,i)
+            marker_dict = {0: 'o', 1: 's', 2: '^', 3: '<', 4: '>', 5: '*'}
+            gri_marker_counters = [0, 0, 0]
+
             fig = plt.figure() if make_plot is True else make_plot
             fig.set_size_inches(8, nplots * 3 + 0.5)
             axes = fig.subplots(nplots, 1, sharex=True)
-            plot_num = 0
+
             for key in fcqfid_dict:
-                if fcqfid_dict[key]['N_bl'] > 1:
+                if fcqfid_dict[str(key)]['N_bl'] > 1:
                     ufid = int(key)
-                    this_fcqfid_good = np.where((fp_df.fcqfid.values == ufid) & 
+                    this_fcqfid_good = np.where((fp_df.fcqfid.values == ufid) &
                                                 (bad_obs == 0))
 
                     plot_jd = fp_df.jd.values[this_fcqfid_good] - jdstart
                     plot_flux = fnu_microJy[this_fcqfid_good]
                     plot_flux_unc = fnu_microJy_unc[this_fcqfid_good]
-                    
+
                     if (plot_flux == -999).sum() == len(plot_flux):
                         continue
 
-                    ax = axes[plot_num] if nplots > 1 else axes
+                    # select subplot based on current filter
+                    plot_num = int(str(key)[-1]) - 1
+
+                    # select marker based on FCQ(F)ID
+                    this_marker = marker_dict[gri_marker_counters[plot_num]]
+                    gri_marker_counters[plot_num] += 1
+
+                    ax = axes[plot_num]
                     ax.errorbar(plot_jd, plot_flux, plot_flux_unc,
-                                            fmt='o',
-                                            mec=color_dict[ufid % 10],
-                                            ecolor=color_dict[ufid % 10],
-                                            mfc='None')
-                    
-                    if roll_med_plot == True:
-                        jd_time = Time(plot_jd + jdstart, format='jd')
-                        f_ser = pd.Series(plot_flux, 
-                                          index = 
-                                          pd.to_datetime(jd_time.datetime))
-                        plot_roll = f_ser.rolling(window, 
-                                                  center=True).median().values
-                        ax.plot(plot_jd, plot_roll, 
-                                color = 'lightgrey', zorder = 2)
-                    
-                    ax.axvline(x = t_peak - jdstart, color = '0.5', ls = '--')
-                    ax.axhline(y = 0, color = '0.5',
-                               ls = (0, [8, 1.5, 1, 1.5]), lw = 0.5, alpha=0.75)
+                                fmt=this_marker,
+                                mec=color_dict[ufid % 10],
+                                ecolor=color_dict[ufid % 10],
+                                mfc='None', label=str(key))
+                    ax.legend()
+
+                    #if roll_med_plot == True:
+                    #    jd_time = Time(plot_jd + jdstart, format='jd')
+                    #    f_ser = pd.Series(plot_flux,
+                    #                      index=
+                    #                      pd.to_datetime(jd_time.datetime))
+                    #    plot_roll = f_ser.rolling(window,
+                    #                              center=True).median().values
+                    #    ax.plot(plot_jd, plot_roll,
+                    #            color='lightgrey', zorder=2)
+
+                    ax.axvline(x=t_peak - jdstart, color='0.5', ls='--')
+                    ax.axhline(y=0, color='0.5',
+                               ls=(0, [8, 1.5, 1, 1.5]), lw=0.5, alpha=0.75)
                     ax.axvspan(0, t_peak - jdstart - 100,
                                color='Cornsilk', alpha=0.6, lw=0)
                     ax.axvspan(t_faded - jdstart, 1e6,
                                color='Cornsilk', alpha=0.6, lw=0)
-                    ax.set_ylabel(r'flux ($\mu$Jy)', fontsize = 14)
-                    ax.set_xlim(np.min(fp_df.jd.values - jdstart)-10,
-                                np.max(fp_df.jd.values - jdstart)+10)
-                    ax.set_title(f"{ztf_name}, {ufid}")
-                    
+                    ax.set_ylabel(r'flux ($\mu$Jy)', fontsize=14)
+                    ax.set_xlim(np.min(fp_df.jd.values - jdstart) - 10,
+                                    np.max(fp_df.jd.values - jdstart) + 10)
+
                     if talk_plot:
                         ax.tick_params(axis='both', colors='white')
                         for spine in ['top', 'bottom', 'left', 'right']:
                             ax.spines[spine].set_color('white')
                         ax.yaxis.label.set_color('white')
                         ax.xaxis.label.set_color('white')
-                    plot_num += 1
-            
-            ax.set_xlabel('Time (JD - 2018 Jan 01)', fontsize = 14)
+
+            axes[0].set_title(f"{ztf_name}, ZTF_g")
+            axes[1].set_title(f"{ztf_name}, ZTF_r")
+            axes[2].set_title(f"{ztf_name}, ZTF_i")
+            axes[2].set_xlabel('Time (JD - 2018 Jan 01)', fontsize=14)
             
             fig.tight_layout()
             if save_fig:
