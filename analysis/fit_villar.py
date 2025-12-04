@@ -101,6 +101,53 @@ def calc_sn_exp_decline(t, A, B, t0, gamma, trise, tfall, offset):
                    (1 + np.exp(-(t-t0)/trise)))
     return f
 
+
+def load_lc_df(sn, lc_path, min_num_obs=10):
+    '''
+    Load ZTF light curve (LC) into a dataframe, with quality cuts
+    
+    Parameters
+    ----------
+    sn : string
+        ZTF name of the SN to be fit by the model
+    
+    lc_path : string (optional, default = '')
+        File path to folder containing processed fps lc files from Miller+24
+
+    min_num_obs : int (optional, default = 10)
+        If there are fewer than min_num_obs observations for any given filter,
+        exclude from output dataframe
+
+    Returns
+    -------
+    lc_df_clean : pandas dataframe
+        Dataframe of LC obs. with flags==0 and valid flux measurements. Entire 
+        passbands may be excluded if there were fewer than min_num_obs valid points
+    '''
+
+    lc_df = pd.read_csv(f"{lc_path}/{sn}_fnu.csv")
+
+    keep_ind = []
+
+    for pb in lc_df.passband.unique():
+
+        pb_lc = np.where((lc_df["passband"] == pb) & 
+                         (lc_df["flags"] == 0) & 
+                         # # CHECK IF THIS IS WHAT SHOULD BE DONE!!!
+                         # (lc_df["programid"] == 1) &
+                         (lc_df["fnu_microJy"] != -999)
+                        )
+        if len(pb_lc[0]) < min_num_obs:
+            # if fewer than min_num_obs pts in this filter, don't include in df
+            continue
+        else:
+            keep_ind.append(pb_lc[0])
+
+    lc_df_clean = lc_df.iloc[np.concatenate(keep_ind)]
+    return lc_df_clean
+
+
+
 def fit_gr(sn, lc_path='', out_path=''):
     '''
     Fit parametric model from Villar+19 to ZTF light curve
@@ -117,26 +164,20 @@ def fit_gr(sn, lc_path='', out_path=''):
         File path to write output files (MCMC chains and summary statistics)
     '''
     
-    lc_df = pd.read_csv(f"{lc_path}/{sn}_fnu.csv")
+    lc_df = load_lc_df(sn, lc_path)
     for pb in lc_df.passband.unique():
         filt = pb[-1]
     
         # Fit the model with the current filter
-        pb_lc = np.where((lc_df["passband"] == f'ZTF_{filt}') & 
-                         (lc_df["flags"] == 0) & 
-                         # # CHECK IF THIS IS WHAT SHOULD BE DONE!!!
-                         # (lc_df["programid"] == 1) &
-                         (lc_df["fnu_microJy"] != -999)
-                        )
-        if len(pb_lc[0]) < 10:
-            continue
-        jd0 = 2458119.5 # 2018 Jan 01
-        time_axis = (lc_df['jd'].values)[pb_lc] - jd0
+        lc_df_thisfilt = lc_df[(lc_df["passband"] == f'ZTF_{filt}')]
 
-        Y_observed = ((lc_df['fnu_microJy']).values)[pb_lc]
+        jd0 = 2458119.5 # 2018 Jan 01
+        time_axis = (lc_df_thisfilt['jd'].values) - jd0
+
+        Y_observed = ((lc_df_thisfilt['fnu_microJy']).values)
         # Y_observed_filter.append(light_data)
 
-        Y_unc = ((lc_df['fnu_microJy_unc']).values)[pb_lc]
+        Y_unc = ((lc_df_thisfilt['fnu_microJy_unc']).values)
     
         with pm.Model() as model:
             # Define priors based on Villar+19
@@ -198,7 +239,8 @@ def fit_gr(sn, lc_path='', out_path=''):
             Y_obs = pm.Normal('Y_obs', mu=mu_switch, 
                               sigma=Y_unc, observed=Y_observed)
             # Draw samples from the posterior
-            data = pm.sample(1000, tune = 15000, cores = 4, 
+            data = pm.sample(1000, tune = 15000, cores = 4,
+                             discard_tuned_samples=False,
                              return_inferencedata=True, 
                              progressbar = True, 
                              target_accept=0.99)
@@ -206,6 +248,7 @@ def fit_gr(sn, lc_path='', out_path=''):
         out_summary = f"{out_path}/{sn}_{filt}.csv"
         az.summary(data,
                    stat_focus='median').to_csv(out_summary)
+
 
 def plot_posterior_draws(sn, lc_path='', out_path='', save_fig=True):
     '''
@@ -229,27 +272,23 @@ def plot_posterior_draws(sn, lc_path='', out_path='', save_fig=True):
                   'ZTF_r': "Crimson",
                   'ZTF_i': "GoldenRod"}
 
-    lc_df = pd.read_csv(f"{lc_path}/{sn}_fnu.csv")
+    lc_df = load_lc_df(sn, lc_path)
     fig, ax = plt.subplots(figsize=(10,4))
     for pb in lc_df.passband.unique():
-        # this_pb = np.where(lc_df.passband == pb)
         filt = pb[-1]
-        this_pb = np.where((lc_df["passband"] == f'ZTF_{filt}') & 
-                         (lc_df["flags"] == 0) & 
-                         # # CHECK IF THIS IS WHAT SHOULD BE DONE!!!
-                         # (lc_df["programid"] == 1) &
-                         (lc_df["fnu_microJy"] != -999)
-                        )
-        if len(this_pb[0]) < 10:
-            continue
+        lc_df_thisfilt = lc_df[(lc_df["passband"] == f'ZTF_{filt}')]
         
         jd0 = 2458119.5 # 2018 Jan 01
         
-        chains = az.from_netcdf(f"{out_path}/{sn}_{filt}.nc")
-        ax.errorbar(lc_df.jd.values[this_pb] - jd0, 
-                    lc_df.fnu_microJy.values[this_pb], 
-                    lc_df.fnu_microJy_unc.values[this_pb], 
-                    fmt='o', color=color_dict[pb])    
+        try:
+            chains = az.from_netcdf(f"{out_path}/{sn}_{filt}.nc")
+        except:
+            print(f'Unable to find chains for {sn} in {pb}, skipping this filter.')
+            continue
+        ax.errorbar(lc_df_thisfilt.jd.values - jd0, 
+                    lc_df_thisfilt.fnu_microJy.values, 
+                    lc_df_thisfilt.fnu_microJy_unc.values, 
+                    fmt='o', color=color_dict[pb])   
 
         # max posterior plot
         pi_max_index = np.argmax(chains.sample_stats.lp.values.flatten())
@@ -273,7 +312,7 @@ def plot_posterior_draws(sn, lc_path='', out_path='', save_fig=True):
                                  pi_max_scalar), 
                 color = color_dict[pb])
         t_grid_decline = np.linspace(pi_max_t0+pi_max_gamma,
-                                     np.max(lc_df.jd.values[this_pb]) - jd0,
+                                     np.max(lc_df_thisfilt.jd.values) - jd0,
                                      num = 10000)
         ax.plot(t_grid_decline, 
                 calc_sn_exp_decline(t_grid_decline, 
@@ -311,7 +350,7 @@ def plot_posterior_draws(sn, lc_path='', out_path='', save_fig=True):
                                  pi_scalar), 
                 color = color_dict[pb], ls='--', lw=0.6, alpha=0.3)
         t_grid_decline = np.linspace(pi_t0+pi_gamma,
-                                     np.max(lc_df.jd.values[this_pb]) - jd0,
+                                     np.max(lc_df_thisfilt.jd.values) - jd0,
                                      num = 10000)
         ax.plot(t_grid_decline, 
                 calc_sn_exp_decline(t_grid_decline, 
@@ -324,15 +363,15 @@ def plot_posterior_draws(sn, lc_path='', out_path='', save_fig=True):
                                     pi_scalar), 
                 color = color_dict[pb], ls='--', lw=0.6, alpha=0.3)
     
-        x_max = np.min([pi_max_t0 + pi_max_gamma + 10*pi_max_tfall, 
-                       np.max(lc_df.jd.values[this_pb]) - jd0 + 10])
-        ax.set_xlim(pi_max_t0 - 75, x_max)
-        ax.set_ylim(-3*median_abs_deviation(lc_df.fnu_microJy.values[this_pb]), 
-                    1.2*np.percentile(lc_df.fnu_microJy.values, 99.5))
         ax.set_xlabel('Time (JD - 2018 Jan 01)',fontsize=14)
+        x_max = np.min([pi_max_t0 + pi_max_gamma + 10*pi_max_tfall, 
+                   np.max(lc_df_thisfilt.jd.values) - jd0 + 10])
+        ax.set_xlim(pi_max_t0 - 75, x_max)
+        ax.set_ylim(-3*median_abs_deviation(lc_df_thisfilt.fnu_microJy.values), 
+                    1.2*np.percentile(lc_df_thisfilt.fnu_microJy.values, 99.5))
         ax.set_ylabel(r'Flux ($\mu$Jy)',fontsize=14)
         ax.tick_params(axis='both', which='major', labelsize=12)
-        fig.subplots_adjust(left=0.8,bottom=0.13,right=0.99, top=0.99)
+        #fig.subplots_adjust(left=0.8,bottom=0.13,right=0.99, top=0.99)
     if save_fig:
         fig.savefig(f"{lc_path}/{sn}_posterior.png", 
                     dpi = 600, transparent=True)
