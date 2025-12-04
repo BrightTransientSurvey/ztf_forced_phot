@@ -1,6 +1,7 @@
 import gc, pkg_resources
 import numpy as np
 import pandas as pd
+import re
 
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import Figure
@@ -41,7 +42,7 @@ def read_ipac_fps(fps_file):
     ipac_version = pd.read_csv(fps_file, skiprows=1, nrows=1).columns[1][2]
     if ipac_version == '2':
         fp = pd.read_csv(fps_file,
-                         delim_whitespace=True, comment='#', skiprows=70,
+                         sep=r'\s+', comment='#', skiprows=70,
                          names=['ipac_index', 'field', 'ccdid', 'qid',
                                 'filter', 'pid', 'infobitssci', 'airmass',
                                 'moonalt', 'moonillf', 'moonra', 'moondec',
@@ -61,29 +62,47 @@ def read_ipac_fps(fps_file):
                                 'nearestrefmag', 'nearestrefmagunc',
                                 'nearestrefchi', 'nearestrefsharp',
                                 'procstatus'])
-
     elif int(ipac_version) >= 3:
-        fp = pd.read_csv(fps_file,
-                         delim_whitespace=True, comment='#', header=0,
-                         names=['sindex', 'field', 'ccdid', 'qid', 'filter',
-                                'pid', 'infobitssci', 'sciinpseeing',
-                                'scibckgnd', 'scisigpix', 'zpmaginpsci',
-                                'zpmaginpsciunc', 'zpmaginpscirms',
-                                'clrcoeff', 'clrcoeffunc', 'ncalmatches',
-                                'exptime', 'adpctdif1', 'adpctdif2',
-                                'diffmaglim', 'zpdiff', 'programid', 'jd',
-                                'rfid', 'forcediffimflux',
-                                'forcediffimfluxunc', 'forcediffimsnr',
-                                'forcediffimchisq', 'forcediffimfluxap',
-                                'forcediffimfluxuncap', 'forcediffimsnrap',
-                                'aperturecorr', 'dnearestrefsrc',
-                                'nearestrefmag', 'nearestrefmagunc',
-                                'nearestrefchi', 'nearestrefsharp',
-                                'refjdstart', 'refjdend', 'procstatus'])
+        if ipac_version == '6':
+            # Recent versions of fps output include a "diffimgstatus" column
+            fp = pd.read_csv(fps_file,
+                             sep=r'\s+', comment='#', header=0,
+                             names=["sindex", "field", "ccdid", "qid", "filter",
+                                    "pid", "infobitssci", "sciinpseeing",
+                                    "scibckgnd", "scisigpix", "zpmaginpsci",
+                                    "zpmaginpsciunc", "zpmaginpscirms",
+                                    "clrcoeff", "clrcoeffunc", "ncalmatches",
+                                    "exptime", "adpctdif1", "adpctdif2",
+                                    "diffmaglim", "zpdiff", "programid", "jd",
+                                    "rfid", "diffimgstatus", "forcediffimflux",
+                                    "forcediffimfluxunc", "forcediffimsnr",
+                                    "forcediffimchisq", "forcediffimfluxap",
+                                    "forcediffimfluxuncap", "forcediffimsnrap",
+                                    "aperturecorr", "dnearestrefsrc", "nearestrefmag",
+                                    "nearestrefmagunc", "nearestrefchi",
+                                    "nearestrefsharp", "refjdstart", "refjdend",
+                                    "procstatus"])
+        else:
+            fp = pd.read_csv(fps_file,
+                            sep=r'\s+', comment='#', header=0,
+                            names=['sindex', 'field', 'ccdid', 'qid', 'filter',
+                                    'pid', 'infobitssci', 'sciinpseeing',
+                                    'scibckgnd', 'scisigpix', 'zpmaginpsci',
+                                    'zpmaginpsciunc', 'zpmaginpscirms',
+                                    'clrcoeff', 'clrcoeffunc', 'ncalmatches',
+                                    'exptime', 'adpctdif1', 'adpctdif2',
+                                    'diffmaglim', 'zpdiff', 'programid', 'jd',
+                                    'rfid', 'forcediffimflux',
+                                    'forcediffimfluxunc', 'forcediffimsnr',
+                                    'forcediffimchisq', 'forcediffimfluxap',
+                                    'forcediffimfluxuncap', 'forcediffimsnrap',
+                                    'aperturecorr', 'dnearestrefsrc',
+                                    'nearestrefmag', 'nearestrefmagunc',
+                                    'nearestrefchi', 'nearestrefsharp',
+                                    'refjdstart', 'refjdend', 'procstatus'])
 
         palomar = EarthLocation.of_site('Palomar')
-        ha = pd.read_csv(fps_file, skiprows=3, nrows=2,
-                         delim_whitespace=True,
+        ha = pd.read_csv(fps_file, skiprows=3, nrows=2, sep=r'\s+',
                          names=['dum', 'dum1', 'dum2', 'coords', 'dum4'])
         ra, dec = ha.coords.values
         targ = SkyCoord(ra*u.deg, dec*u.deg)
@@ -91,7 +110,6 @@ def read_ipac_fps(fps_file):
         targaltaz = targ.transform_to(AltAz(obstime=time, location=palomar))
         airmass = targaltaz.secz.value
         fp['airmass'] = airmass
-
 
     union_list = ['field', 'ccdid', 'qid', 'filter',
                   'pid', 'infobitssci', 'airmass',
@@ -110,7 +128,7 @@ def read_ipac_fps(fps_file):
 
     cloudy = np.zeros_like(fp_det.infobitssci.values)
     read_opts = {
-        'delim_whitespace': True,
+        'sep': r'\s+',
         'names': ['zp_rcid_g', 'zp_rcid_r', 'zp_rcid_i'],
         'comment': '#'
     }
@@ -251,9 +269,19 @@ def get_baseline(fps_file, window="14D",
     bad_obs_fl = 512
 
     if isinstance(fps_file, str):
-        if save_fig is True or write_lc is not False or make_plot is True:
-            ztf_name = 'ZTF' + fps_file.split('ZTF')[-1][0:9]
-            print(ztf_name)
+        if save_fig or write_lc or make_plot:
+            if "ZTF" in fps_file:
+                # If "ZTF" is in the file name, assume the following 9 characters
+                # are the two-digit year and the seven-letter ZTF ID
+                ztf_name = 'ZTF' + fps_file.split('ZTF')[-1][0:9]
+                print("ZTF name: {}".format(ztf_name))
+            elif "reqid" in fps_file:
+                # Batch FP output files are identified with their request ID integers
+                # This extracts the request ID integer from the file name if it contains "reqid"
+                ztf_name = re.search(r'reqid(\d+)\.txt$', fps_file).group(1)
+                print("Request ID: {}".format(ztf_name))
+            else:
+                raise AssertionError("Unable to decode object name from file path: {}".format(fps_file))
         fp_df = read_ipac_fps(fps_file)
         if save_path == 'default':
             save_path = fps_file[0:-len(fps_file.split('/')[-1])]
